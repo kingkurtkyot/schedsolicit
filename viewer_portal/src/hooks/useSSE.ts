@@ -30,7 +30,7 @@ export function useSSE({ token, enabled = true, onUpdate, onPollFallback }: UseS
   }, []);
 
   const connect = useCallback(() => {
-    if (!enabled || !token || typeof window === 'undefined') return;
+    if (!enabled || !token || token === 'local' || token.startsWith('SS1_') || typeof window === 'undefined') return;
 
     if (eventSourceRef.current) {
       eventSourceRef.current.close();

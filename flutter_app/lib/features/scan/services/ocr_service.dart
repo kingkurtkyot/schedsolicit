@@ -1,11 +1,8 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
-import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
-import '../../../core/network/api_client.dart';
-import '../../../core/network/api_endpoints.dart';
 import 'field_parser.dart';
 
 class RecognizedTextResult {
@@ -25,10 +22,9 @@ class RecognizedTextResult {
 }
 
 class OcrService {
-  final ApiClient _apiClient;
   TextRecognizer? _textRecognizer;
 
-  OcrService({ApiClient? apiClient}) : _apiClient = apiClient ?? ApiClient() {
+  OcrService() {
     if (!kIsWeb) {
       try {
         _textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
@@ -41,23 +37,32 @@ class OcrService {
 
   Future<RecognizedTextResult> recognizeBytes(
     Uint8List imageBytes, {
+    String? filePath,
     String fileName = 'scan.jpg',
     String module = 'schedule',
   }) async {
     // -------------------------------------------------------------
-    // 1. Mobile Native: On-Device Google ML Kit (Lightning fast, offline)
+    // 1. Mobile Native: On-Device Google ML Kit (100% Offline & Instant)
     // -------------------------------------------------------------
     if (!kIsWeb && _textRecognizer != null) {
+      File? tempFile;
       try {
-        final tempDir = await getTemporaryDirectory();
-        final tempFile = File('${tempDir.path}/ocr_${DateTime.now().millisecondsSinceEpoch}.jpg');
-        await tempFile.writeAsBytes(imageBytes);
+        final InputImage inputImage;
+        if (filePath != null && filePath.isNotEmpty && await File(filePath).exists()) {
+          inputImage = InputImage.fromFilePath(filePath);
+        } else {
+          final tempDir = await getTemporaryDirectory();
+          tempFile = File('${tempDir.path}/ocr_${DateTime.now().millisecondsSinceEpoch}.jpg');
+          await tempFile.writeAsBytes(imageBytes);
+          inputImage = InputImage.fromFilePath(tempFile.path);
+        }
 
-        final inputImage = InputImage.fromFilePath(tempFile.path);
         final recognizedText = await _textRecognizer!.processImage(inputImage);
 
-        // Clean up temp file
-        tempFile.delete().catchError((_) => tempFile);
+        // Clean up temp file if created
+        if (tempFile != null) {
+          tempFile.delete().catchError((_) => tempFile!);
+        }
 
         final fullText = recognizedText.text.trim();
         if (fullText.isNotEmpty) {
@@ -67,7 +72,7 @@ class OcrService {
               .where((t) => t.isNotEmpty)
               .toList();
 
-          // Auto-parse fields immediately on-device
+          // Auto-parse fields on-device
           final parsed = module == 'schedule'
               ? FieldParser.parseSchedule(fullText)
               : FieldParser.parseSolicitation(fullText);
@@ -75,69 +80,28 @@ class OcrService {
           return RecognizedTextResult(
             fullText: fullText,
             lines: lines,
-            confidence: 0.94,
+            confidence: 0.95,
             usedBackendFallback: false,
             suggestedFields: parsed.fields,
           );
         }
       } catch (e) {
         debugPrint('On-device ML Kit recognition error: $e');
-      }
-    }
-
-    // -------------------------------------------------------------
-    // 2. Web or Server-Assisted: Call Backend OCR (/api/ocr/parse)
-    // -------------------------------------------------------------
-    try {
-      final formData = FormData.fromMap({
-        'file': MultipartFile.fromBytes(imageBytes, filename: fileName),
-      });
-
-      final res = await _apiClient.post(
-        ApiEndpoints.ocrParse,
-        data: formData,
-        options: Options(
-          sendTimeout: const Duration(seconds: 5),
-          receiveTimeout: const Duration(seconds: 10),
-        ),
-      );
-
-      if (res.statusCode == 200 && res.data != null) {
-        final data = res.data as Map<String, dynamic>;
-        final text = (data['text'] ?? data['raw_text'] ?? '') as String;
-        final lines = (data['lines'] as List<dynamic>?)?.cast<String>() ??
-            text.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
-        final confidence = (data['confidence'] as num?)?.toDouble() ?? 0.88;
-        final fields = (data['fields'] ?? data['suggested_fields'] ?? {}) as Map<String, dynamic>;
-
-        if (text.trim().isNotEmpty) {
-          return RecognizedTextResult(
-            fullText: text,
-            lines: lines,
-            confidence: confidence,
-            usedBackendFallback: true,
-            suggestedFields: fields,
-          );
+        if (tempFile != null) {
+          tempFile.delete().catchError((_) => tempFile!);
         }
       }
-    } catch (e) {
-      debugPrint('Backend OCR request skipped or unavailable: $e');
     }
 
     // -------------------------------------------------------------
-    // 3. Fallback: If OCR could not detect readable text, return structured fallback
+    // 2. No readable text found — return honest empty result (No dummy hallucinations)
     // -------------------------------------------------------------
-    final fallbackTitle = module == 'schedule' ? 'Scanned Document Event' : 'Scanned Solicitation Letter';
-    final parsed = module == 'schedule'
-        ? FieldParser.parseSchedule('Title: $fallbackTitle\nDate: ${DateTime.now().add(const Duration(days: 2)).toIso8601String().split('T').first}\nTime: 9:00 AM')
-        : FieldParser.parseSolicitation('Title: $fallbackTitle\nOrganization: Community Partner\nAmount: \$100.00');
-
-    return RecognizedTextResult(
-      fullText: 'Document scanned (${fileName})',
-      lines: [fallbackTitle],
-      confidence: 0.70,
-      usedBackendFallback: true,
-      suggestedFields: parsed.fields,
+    return const RecognizedTextResult(
+      fullText: '',
+      lines: [],
+      confidence: 0.0,
+      usedBackendFallback: false,
+      suggestedFields: {},
     );
   }
 

@@ -1,5 +1,4 @@
 import 'dart:math';
-import 'package:intl/intl.dart';
 
 class ParsedFieldResult {
   final Map<String, dynamic> fields;
@@ -31,29 +30,25 @@ class FieldParser {
     if (lines.isEmpty) return const ParsedFieldResult(fields: {});
 
     // 1. Title Extraction
-    // Skip headers like "SCHEDULE", "EVENT", "INVITATION", "NOTICE", or dates
-    final candidateTitle = _findBestTitle(lines, defaultFallback: 'Scanned Event');
+    final candidateTitle = _findBestScheduleTitle(lines);
     fields['title'] = candidateTitle;
-    conf['title'] = 0.88;
+    conf['title'] = 0.92;
 
     // 2. Date Extraction
     final parsedDate = _extractDate(text);
     if (parsedDate != null) {
       fields['event_date'] = parsedDate;
-      conf['event_date'] = 0.95;
-    } else {
-      fields['event_date'] = DateTime.now().add(const Duration(days: 1));
-      conf['event_date'] = 0.50;
+      conf['event_date'] = 0.96;
     }
 
     // 3. Time Extraction (Start and End Time)
     final times = _extractTimes(text);
     if (times.isNotEmpty) {
       fields['start_time'] = times[0];
-      conf['start_time'] = 0.90;
+      conf['start_time'] = 0.94;
       if (times.length > 1) {
         fields['end_time'] = times[1];
-        conf['end_time'] = 0.88;
+        conf['end_time'] = 0.90;
       }
     }
 
@@ -61,15 +56,12 @@ class FieldParser {
     final location = _extractLocation(lines);
     if (location != null) {
       fields['location'] = location;
-      conf['location'] = 0.82;
+      conf['location'] = 0.88;
     }
 
     // 5. Category Detection
-    final category = _detectScheduleCategory(text);
-    if (category != null) {
-      fields['category'] = category;
-      conf['category'] = 0.85;
-    }
+    fields['category'] = _detectScheduleCategory(text);
+    conf['category'] = 0.85;
 
     // 6. Priority Detection
     fields['priority'] = _detectPriority(text);
@@ -98,29 +90,29 @@ class FieldParser {
     if (lines.isEmpty) return const ParsedFieldResult(fields: {});
 
     // 1. Title Extraction
-    final candidateTitle = _findBestTitle(lines, defaultFallback: 'Scanned Solicitation');
+    final candidateTitle = _findBestSolicitationTitle(lines);
     fields['title'] = candidateTitle;
-    conf['title'] = 0.88;
+    conf['title'] = 0.90;
 
     // 2. Amount Requested (PHP, $, ₱, USD, EUR, etc.)
     final amount = _extractAmount(text);
     if (amount != null && amount > 0) {
       fields['amount_requested'] = amount;
-      conf['amount_requested'] = 0.95;
+      conf['amount_requested'] = 0.96;
     }
 
     // 3. Organization Extraction
     final org = _extractOrganization(lines);
     if (org != null) {
       fields['organization'] = org;
-      conf['organization'] = 0.88;
+      conf['organization'] = 0.90;
     }
 
     // 4. Contact Person Extraction
     final contactPerson = _extractContactPerson(lines);
     if (contactPerson != null) {
       fields['contact_person'] = contactPerson;
-      conf['contact_person'] = 0.85;
+      conf['contact_person'] = 0.88;
     }
 
     // 5. Phone & Email
@@ -140,7 +132,7 @@ class FieldParser {
     final deadline = _extractDate(text);
     if (deadline != null) {
       fields['deadline'] = deadline;
-      conf['deadline'] = 0.85;
+      conf['deadline'] = 0.88;
     }
 
     // 7. Purpose / Description
@@ -148,7 +140,7 @@ class FieldParser {
     if (purpose != null) {
       fields['purpose'] = purpose;
       fields['notes'] = purpose;
-      conf['purpose'] = 0.80;
+      conf['purpose'] = 0.85;
     }
 
     // 8. Category & Priority
@@ -160,52 +152,82 @@ class FieldParser {
 
   // ================= Helper Parsers =================
 
-  static String _findBestTitle(List<String> lines, {required String defaultFallback}) {
-    final ignoreKeywords = [
-      'invitation', 'notice', 'announcement', 'memorandum', 'memo',
-      'solicitation', 'solicitation letter', 'dear', 'to whom it may concern',
-      'schedule of events', 'event schedule', 'program of activities',
-      'page 1', 'date:', 'time:', 'venue:',
+  static String _findBestScheduleTitle(List<String> lines) {
+    const eventKeywords = [
+      'christening', 'baptism', 'birthday', 'wedding', 'anniversary',
+      'dedication', 'reunion', 'seminar', 'conference', 'meeting',
+      'assembly', 'concert', 'gala', 'tournament', 'league', 'mass',
+      'celebration', 'party', 'shower', 'memorial', 'grad', 'graduation'
+    ];
+
+    const genericIgnore = [
+      'you are invited to', 'invitation', 'cordially invited', 'save the date',
+      'please join us', 'schedule', 'notice', 'announcement', 'memo',
+      'memorandum', 'program of activities', 'join us as we celebrate'
+    ];
+
+    // Check for "Name + Event" pattern (e.g., "Jia Jizelle Christening")
+    for (int i = 0; i < lines.length; i++) {
+      final lower = lines[i].toLowerCase().trim();
+      for (final kw in eventKeywords) {
+        if (lower.contains(kw)) {
+          // If the line already has words besides the keyword (e.g. "Jia Jizelle Christening")
+          if (lines[i].trim().split(RegExp(r'\s+')).length >= 2) {
+            return _cleanTitle(lines[i]);
+          }
+          // If the previous line has a name (e.g. "JIA JIZELLE" followed by "Christening")
+          if (i > 0 && !genericIgnore.any((g) => lines[i - 1].toLowerCase().contains(g))) {
+            return '${_cleanTitle(lines[i - 1])} - ${_cleanTitle(lines[i])}';
+          }
+          // If the next line has a name
+          if (i + 1 < lines.length && !genericIgnore.any((g) => lines[i + 1].toLowerCase().contains(g))) {
+            return '${_cleanTitle(lines[i])}: ${_cleanTitle(lines[i + 1])}';
+          }
+          return _cleanTitle(lines[i]);
+        }
+      }
+    }
+
+    // Fallback: Find first prominent line that isn't a date or generic banner
+    for (final line in lines) {
+      final lower = line.toLowerCase().trim();
+      if (lower.length < 3 || lower.length > 80) continue;
+      if (genericIgnore.any((g) => lower == g || lower.startsWith(g))) continue;
+      if (RegExp(r'^\d+$').hasMatch(lower)) continue;
+      if (lower.startsWith('date:') || lower.startsWith('time:') || lower.startsWith('venue:')) continue;
+      return _cleanTitle(line);
+    }
+
+    return lines.isNotEmpty ? _cleanTitle(lines.first) : 'Scanned Event';
+  }
+
+  static String _findBestSolicitationTitle(List<String> lines) {
+    const genericIgnore = [
+      'solicitation letter', 'solicitation', 'request letter', 'to whom it may concern',
+      'dear sir/madam', 'greetings in peace', 'warm greetings', 're:', 'subject:'
     ];
 
     for (final line in lines) {
       final lower = line.toLowerCase().trim();
-      if (lower.length < 3 || lower.length > 90) continue;
-      // Skip if line is just numbers or dates
-      if (RegExp(r'^\d+$').hasMatch(lower)) continue;
-      if (ignoreKeywords.contains(lower)) continue;
-      // If line contains reasonable words, use it as title
-      return line.trim();
+      if (lower.length < 4 || lower.length > 80) continue;
+      if (genericIgnore.any((g) => lower == g || lower.startsWith(g))) continue;
+      if (lower.startsWith('date:') || lower.startsWith('contact:')) continue;
+      return _cleanTitle(line);
     }
 
-    return lines.isNotEmpty ? lines.first : defaultFallback;
+    return lines.isNotEmpty ? _cleanTitle(lines.first) : 'Scanned Solicitation';
+  }
+
+  static String _cleanTitle(String raw) {
+    return raw
+        .replaceAll(RegExp(r'^(?:Title|Event|Subject|Re)[:\s]+', caseSensitive: false), '')
+        .trim();
   }
 
   static DateTime? _extractDate(String text) {
-    // 1. Match ISO: YYYY-MM-DD
-    final isoRegex = RegExp(r'\b(20\d\d)[-/](0?[1-9]|1[0-2])[-/](0?[1-9]|[12]\d|3[01])\b');
-    final isoMatch = isoRegex.firstMatch(text);
-    if (isoMatch != null) {
-      final y = int.parse(isoMatch.group(1)!);
-      final m = int.parse(isoMatch.group(2)!);
-      final d = int.parse(isoMatch.group(3)!);
-      return DateTime(y, m, d);
-    }
-
-    // 2. Match MM/DD/YYYY or DD/MM/YYYY
-    final slashRegex = RegExp(r'\b(0?[1-9]|1[0-2])/(0?[1-9]|[12]\d|3[01])/(20\d\d|\d{2})\b');
-    final slashMatch = slashRegex.firstMatch(text);
-    if (slashMatch != null) {
-      var y = int.parse(slashMatch.group(3)!);
-      if (y < 100) y += 2000;
-      final m = int.parse(slashMatch.group(1)!);
-      final d = int.parse(slashMatch.group(2)!);
-      return DateTime(y, m, d);
-    }
-
-    // 3. Match Month Name: e.g. "November 21, 2026", "Nov 21 2026", "21 Nov 2026"
+    // 1. Month Name: e.g. "November 28, 2026", "Nov 28 2026", "28 Nov 2026", "November 28th, 2026"
     final monthNameRegex = RegExp(
-      r'\b(?:(0?[1-9]|[12]\d|3[01])\s+)?(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(?:(0?[1-9]|[12]\d|3[01]),?\s+)?(20\d\d)\b',
+      r'\b(?:(0?[1-9]|[12]\d|3[01])(?:st|nd|rd|th)?\s+)?(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(?:(0?[1-9]|[12]\d|3[01])(?:st|nd|rd|th)?,?\s+)?(20\d\d)\b',
       caseSensitive: false,
     );
     final monthMatch = monthNameRegex.firstMatch(text);
@@ -216,6 +238,27 @@ class FieldParser {
       final day = int.tryParse(dayStr) ?? 1;
       final year = int.tryParse(monthMatch.group(4) ?? '2026') ?? DateTime.now().year;
       return DateTime(year, month, day);
+    }
+
+    // 2. Match ISO: YYYY-MM-DD
+    final isoRegex = RegExp(r'\b(20\d\d)[-/](0?[1-9]|1[0-2])[-/](0?[1-9]|[12]\d|3[01])\b');
+    final isoMatch = isoRegex.firstMatch(text);
+    if (isoMatch != null) {
+      final y = int.parse(isoMatch.group(1)!);
+      final m = int.parse(isoMatch.group(2)!);
+      final d = int.parse(isoMatch.group(3)!);
+      return DateTime(y, m, d);
+    }
+
+    // 3. Match MM/DD/YYYY or DD/MM/YYYY
+    final slashRegex = RegExp(r'\b(0?[1-9]|1[0-2])/(0?[1-9]|[12]\d|3[01])/(20\d\d|\d{2})\b');
+    final slashMatch = slashRegex.firstMatch(text);
+    if (slashMatch != null) {
+      var y = int.parse(slashMatch.group(3)!);
+      if (y < 100) y += 2000;
+      final m = int.parse(slashMatch.group(1)!);
+      final d = int.parse(slashMatch.group(2)!);
+      return DateTime(y, m, d);
     }
 
     return null;
@@ -231,7 +274,7 @@ class FieldParser {
 
   static List<String> _extractTimes(String text) {
     final times = <String>[];
-    // e.g. 10:00 AM, 10:00am, 2:30 PM, 14:00, 8:00 AM - 5:00 PM
+    // e.g. 8:00 AM, 10:00am, 2:30 PM, 14:00, 8 AM
     final timeRegex = RegExp(r'\b(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?|\d{1,2}\s*(?:AM|PM|am|pm))\b');
     for (final match in timeRegex.allMatches(text)) {
       final t = match.group(1)!.trim();
@@ -331,9 +374,11 @@ class FieldParser {
 
   static String? _extractLocation(List<String> lines) {
     final locKeywords = [
+      'shrine', 'parish', 'church', 'cathedral', 'chapel', 'basilica',
       'room', 'hall', 'gym', 'gymnasium', 'plaza', 'auditorium', 'center', 'centre',
       'building', 'floor', 'suite', 'street', 'st.', 'ave', 'avenue', 'blvd',
-      'barangay hall', 'church', 'cathedral', 'chapel', 'school grounds', 'park',
+      'barangay hall', 'school grounds', 'park', 'subd', 'subdivision',
+      'reception to follow', 'venue:', 'location:', 'where:'
     ];
 
     for (final line in lines) {
@@ -342,7 +387,7 @@ class FieldParser {
         return line.replaceAll(RegExp(r'^(?:venue|location|where)[:\s]+', caseSensitive: false), '').trim();
       }
       for (final kw in locKeywords) {
-        if (lower.contains(kw) && line.length < 90) {
+        if (lower.contains(kw) && line.length < 100) {
           return line.trim();
         }
       }
@@ -366,17 +411,18 @@ class FieldParser {
   }
 
   static String? _extractDescription(List<String> lines, {required String title}) {
-    final remaining = lines.where((l) => l != title && l.length > 5).take(3).join('\n');
+    final remaining = lines.where((l) => !title.contains(l) && l.length > 8).take(3).join('\n');
     return remaining.isNotEmpty ? remaining : null;
   }
 
   static String _detectScheduleCategory(String text) {
     final lower = text.toLowerCase();
+    if (lower.contains('christening') || lower.contains('baptism') || lower.contains('church') || lower.contains('mass') || lower.contains('worship') || lower.contains('prayer')) return 'Church';
+    if (lower.contains('birthday') || lower.contains('wedding') || lower.contains('anniversary') || lower.contains('reunion') || lower.contains('celebrat')) return 'Personal';
     if (lower.contains('meet') || lower.contains('conference') || lower.contains('assembly')) return 'Meeting';
     if (lower.contains('seminar') || lower.contains('training') || lower.contains('workshop')) return 'Seminar';
     if (lower.contains('basketball') || lower.contains('league') || lower.contains('tournament') || lower.contains('sports')) return 'Sports';
-    if (lower.contains('church') || lower.contains('mass') || lower.contains('worship') || lower.contains('prayer')) return 'Church';
-    if (lower.contains('fiesta') || lower.contains('festival') || lower.contains('celebration')) return 'Festival';
+    if (lower.contains('fiesta') || lower.contains('festival')) return 'Festival';
     if (lower.contains('clean') || lower.contains('community') || lower.contains('barangay')) return 'Community';
     return 'General';
   }

@@ -2,9 +2,9 @@ import React from 'react';
 import { redirect } from 'next/navigation';
 import { Badge } from '@/components/ui/Badge';
 import { ExportButton } from '@/components/ExportButton';
-import { TokenValidationResponse, ViewerContext } from '@/lib/types';
+import { TokenValidationResponse } from '@/lib/types';
 import Link from 'next/link';
-import { Calendar, Shield } from 'lucide-react';
+import { Calendar } from 'lucide-react';
 
 interface TokenLayoutProps {
   children: React.ReactNode;
@@ -14,6 +14,15 @@ interface TokenLayoutProps {
 }
 
 async function validateShareToken(token: string): Promise<TokenValidationResponse> {
+  if (token === 'local') {
+    return {
+      valid: true,
+      label: 'Local Shared Portal',
+      scope: { modules: ['schedule', 'solicitation'] },
+      allowExport: true,
+    };
+  }
+
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
   try {
     const res = await fetch(`${apiUrl}/api/view/auth/validate`, {
@@ -24,31 +33,19 @@ async function validateShareToken(token: string): Promise<TokenValidationRespons
     });
 
     if (!res.ok) {
-      if (res.status === 429) {
-        return { valid: false, rateLimited: true };
-      }
-      if (res.status === 403) {
-        return { valid: false, revoked: true };
-      }
+      if (res.status === 429) return { valid: false, rateLimited: true };
+      if (res.status === 403) return { valid: false, revoked: true };
       return { valid: false, error: 'Token validation failed' };
     }
 
     const data = await res.json();
-    return {
-      valid: true,
-      ...data,
-    };
+    return { valid: true, ...data };
   } catch (err: any) {
-    // If backend is unreachable or local dev without mock, fall back gracefully
+    // If backend is unreachable, allow rendering with local dataset
     return {
       valid: true,
+      label: 'Shared Portal (Offline)',
       scope: { modules: ['schedule', 'solicitation'] },
-      privacyControls: {
-        mask_amounts: false,
-        hide_contact_info: false,
-        hide_internal_notes: false,
-        hide_audit_trail: false,
-      },
       allowExport: true,
     };
   }
@@ -58,7 +55,7 @@ export default async function TokenLayout({ children, params }: TokenLayoutProps
   const { token } = params;
   const validation = await validateShareToken(token);
 
-  if (!validation.valid) {
+  if (!validation.valid && token !== 'local') {
     if (validation.requiresPasscode) {
       redirect(`/passcode?token=${encodeURIComponent(token)}`);
     } else if (validation.rateLimited) {
@@ -73,7 +70,7 @@ export default async function TokenLayout({ children, params }: TokenLayoutProps
   }
 
   const allowExport = validation.allowExport ?? true;
-  const label = validation.label || 'Shared Items';
+  const label = validation.label || 'Shared Portal';
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-[var(--surface-bg)] text-[var(--text-primary)]">
@@ -82,7 +79,7 @@ export default async function TokenLayout({ children, params }: TokenLayoutProps
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <Link
-              href={`/${token}`}
+              href="/"
               className="flex items-center gap-2 text-[var(--color-seed)] font-black text-lg tracking-tight hover:opacity-90 transition-opacity"
             >
               <div className="w-8 h-8 rounded-lg bg-[var(--color-seed)] text-white flex items-center justify-center shadow-xs">

@@ -32,30 +32,82 @@ export function useViewerData({
     hasMore: false,
   });
 
-  const cacheKey = `schedsolicit_cache_${token}_${module}_${statusTab}`;
-  const isInitialLoad = useRef(true);
+  const isLocalDataset = token === 'local' || token.startsWith('SS1_');
 
-  // Restore cached data for instant render / offline
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setItems(parsed);
-            setLoading(false);
-          }
-        }
-      } catch {
-        // ignore cache parse error
+  const loadLocalData = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    setLoading(true);
+    setError(null);
+
+    try {
+      const stored = localStorage.getItem('schedsolicit_dataset');
+      if (!stored) {
+        setItems([]);
+        setPagination({ page: 1, limit: 20, total: 0, hasMore: false });
+        setLoading(false);
+        return;
       }
+
+      const dataset = JSON.parse(stored);
+      const rawList: any[] = module === 'schedule' ? (dataset.schedules || []) : (dataset.solicitations || []);
+
+      // 1. Status Filter (Active vs History)
+      let filtered = rawList.filter((item) => {
+        const s = (item.status || '').toLowerCase();
+        const isHistory = ['done', 'past', 'cancelled', 'given', 'declined'].includes(s);
+        return statusTab === 'history' ? isHistory : !isHistory;
+      });
+
+      // 2. Search Filter
+      if (filters.search && filters.search.trim()) {
+        const q = filters.search.toLowerCase().trim();
+        filtered = filtered.filter((item) => {
+          const title = (item.title || '').toLowerCase();
+          const desc = (item.description || item.purpose || '').toLowerCase();
+          const loc = (item.location || item.organization || '').toLowerCase();
+          return title.includes(q) || desc.includes(q) || loc.includes(q);
+        });
+      }
+
+      // 3. Category Filter
+      if (filters.categories && filters.categories.length > 0) {
+        filtered = filtered.filter((item) => item.category && filters.categories.includes(item.category));
+      }
+
+      // 4. Priority Filter
+      if (filters.priorities && filters.priorities.length > 0) {
+        filtered = filtered.filter((item) => item.priority && filters.priorities.includes(item.priority));
+      }
+
+      // 5. Sort
+      filtered.sort((a, b) => {
+        const dateA = new Date(a.event_date || a.eventDate || a.deadline || a.created_at || 0).getTime();
+        const dateB = new Date(b.event_date || b.eventDate || b.deadline || b.created_at || 0).getTime();
+        return sort.direction === 'asc' ? dateA - dateB : dateB - dateA;
+      });
+
+      setItems(filtered);
+      setPagination({
+        page: 1,
+        limit: 50,
+        total: filtered.length,
+        hasMore: false,
+      });
+    } catch (e: any) {
+      setError(e.message || 'Failed to parse local dataset');
+    } finally {
+      setLoading(false);
     }
-  }, [cacheKey]);
+  }, [module, statusTab, filters, sort]);
 
   const loadData = useCallback(
     async (pageToLoad = 1, append = false) => {
       if (!enabled || !token) return;
+
+      if (isLocalDataset) {
+        loadLocalData();
+        return;
+      }
 
       if (append) {
         setLoadingMore(true);
@@ -93,24 +145,15 @@ export function useViewerData({
           total: result.total,
           hasMore: result.hasMore,
         });
-
-        // Cache first page
-        if (pageToLoad === 1 && typeof window !== 'undefined') {
-          try {
-            localStorage.setItem(cacheKey, JSON.stringify(result.items));
-          } catch {
-            // ignore localStorage quota limit
-          }
-        }
       } catch (err: any) {
-        setError(err.message || 'Failed to load data');
+        // If server fails or offline, attempt local storage fallback
+        loadLocalData();
       } finally {
         setLoading(false);
         setLoadingMore(false);
-        isInitialLoad.current = false;
       }
     },
-    [token, module, statusTab, filters, sort, enabled, items, cacheKey]
+    [token, module, statusTab, filters, sort, enabled, items, isLocalDataset, loadLocalData]
   );
 
   useEffect(() => {

@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -44,16 +43,16 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
     HapticFeedback.selectionClick();
     final pickedFile = await _picker.pickImage(
       source: source,
-      maxWidth: 2048,
-      maxHeight: 2048,
-      imageQuality: 90,
+      maxWidth: 2400,
+      maxHeight: 2400,
+      imageQuality: 95,
     );
     if (pickedFile == null) return;
 
     setState(() {
       _isProcessing = true;
       _step = 1;
-      _status = 'Optimizing image contrast & geometry...';
+      _status = 'Preparing image...';
     });
 
     try {
@@ -63,51 +62,79 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
       if (!mounted) return;
       setState(() {
         _step = 2;
-        _status = 'Running optical character recognition...';
+        _status = 'Reading document text...';
       });
 
       final ocrResult = await _ocrService.recognizeBytes(
         preprocessedBytes,
+        filePath: pickedFile.path,
         fileName: pickedFile.name,
         module: _selectedModule,
       );
 
+      // Check if text was actually detected
+      if (ocrResult.fullText.trim().isEmpty) {
+        if (mounted) {
+          setState(() => _isProcessing = false);
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.orange),
+                  SizedBox(width: 8),
+                  Text('No Text Detected'),
+                ],
+              ),
+              content: const Text(
+                'Could not detect readable text in this image. Please ensure proper lighting and that the document text is sharp and in focus.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Retake Photo'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    context.push('/scan/review', extra: {
+                      'module': _selectedModule,
+                      'image_bytes': preprocessedBytes,
+                      'image_name': pickedFile.name,
+                      'full_text': '',
+                      'fields': {'title': _selectedModule == 'schedule' ? 'New Event' : 'New Solicitation'},
+                      'confidence': 0.0,
+                      'confidences': <String, double>{},
+                    });
+                  },
+                  child: const Text('Fill Manually'),
+                ),
+              ],
+            ),
+          );
+        }
+        return;
+      }
+
       if (!mounted) return;
       setState(() {
         _step = 3;
-        _status = 'Auto-extracting dates, amounts & categories...';
+        _status = 'Auto-extracting details...';
       });
 
-      // 1. Client-side heuristic parser
+      // Client-side heuristic parser
       final clientParsed = _selectedModule == 'schedule'
           ? FieldParser.parseSchedule(ocrResult.fullText)
           : FieldParser.parseSolicitation(ocrResult.fullText);
 
-      // 2. Merge backend AI suggested fields with client parser
       final mergedFields = Map<String, dynamic>.from(clientParsed.fields);
       for (final entry in ocrResult.suggestedFields.entries) {
-        if (entry.value != null) {
-          final val = entry.value;
-          if (entry.key == 'event_date' || entry.key == 'requested_date' || entry.key == 'deadline') {
-            if (val is String) {
-              mergedFields[entry.key] = DateTime.tryParse(val) ?? DateTime.now();
-            } else if (val is DateTime) {
-              mergedFields[entry.key] = val;
-            }
-          } else {
-            mergedFields[entry.key] = val;
-          }
+        if (entry.value != null && (!mergedFields.containsKey(entry.key) || mergedFields[entry.key] == null)) {
+          mergedFields[entry.key] = entry.value;
         }
       }
 
-      // Default title fallback if missing
-      if (mergedFields['title'] == null || (mergedFields['title'] as String).trim().isEmpty) {
-        mergedFields['title'] = _selectedModule == 'schedule' ? 'Scanned Event' : 'Scanned Solicitation';
-      }
-
-      final confidenceScore = ocrResult.confidence > 0 ? ocrResult.confidence : 0.90;
-
-      // Haptic feedback when extraction finishes
+      final confidenceScore = ocrResult.confidence > 0 ? ocrResult.confidence : 0.92;
       HapticFeedback.mediumImpact();
 
       if (mounted) {
@@ -199,7 +226,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Scan any poster, letter, or receipt. Dates, amounts, organizations, and details are auto-extracted instantly.',
+                            'Scan posters, invitations, letters, or receipts. Titles, dates, amounts, and venues are extracted on-device.',
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
                               height: 1.35,
@@ -280,7 +307,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Step $_step of 3 • Running AI OCR pipeline',
+                  'Step $_step of 3 • Running offline AI OCR pipeline',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
