@@ -67,11 +67,16 @@ def parse_fields_from_text(text: str) -> Dict[str, Any]:
             parsed_dates.append(dt.date().isoformat())
     results["extracted_dates"] = list(set(parsed_dates))
 
-    # 5. Suggested mapping
+    # 5. Times regex
+    time_matches = re.findall(r"\b(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?)\b", text)
+
+    # 6. Suggested mapping
     suggested = {}
     lines = [line.strip() for line in text.split("\n") if line.strip()]
     if lines:
         suggested["title"] = lines[0][:100]
+        if len(lines) > 1:
+            suggested["description"] = "\n".join(lines[1:4])[:300]
 
     if results["extracted_amounts"]:
         suggested["amount_requested"] = results["extracted_amounts"][0]
@@ -81,20 +86,38 @@ def parse_fields_from_text(text: str) -> Dict[str, Any]:
         suggested["event_date"] = results["extracted_dates"][0]
         suggested["requested_date"] = results["extracted_dates"][0]
 
+    if time_matches:
+        suggested["start_time"] = time_matches[0]
+        if len(time_matches) > 1:
+            suggested["end_time"] = time_matches[1]
+
     if results["extracted_emails"]:
         suggested["email"] = results["extracted_emails"][0]
 
     if results["extracted_phones"]:
         suggested["phone"] = results["extracted_phones"][0]
 
+    for line in lines:
+        if any(kw in line.lower() for kw in ["room", "hall", "center", "centre", "street", "st.", "ave", "avenue", "blvd", "plaza", "building", "floor", "suite"]):
+            suggested["location"] = line[:100]
+            break
+
+    for line in lines:
+        if any(kw in line.lower() for kw in ["foundation", "inc", "llc", "club", "society", "org", "company", "corp", "association", "group", "school", "university", "church", "charity"]):
+            suggested["organization"] = line[:100]
+            break
+
     results["suggested_fields"] = suggested
+    results["fields"] = suggested
+    results["text"] = text
+    results["lines"] = lines
 
     # Confidence calculation based on matched fields
-    score = 0.2
+    score = 0.3
     if results["extracted_amounts"]:
-        score += 0.3
+        score += 0.25
     if results["extracted_dates"]:
-        score += 0.3
+        score += 0.25
     if results["extracted_emails"] or results["extracted_phones"]:
         score += 0.2
     results["confidence"] = round(min(1.0, score), 2)

@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -23,49 +23,145 @@ class ReviewConfirmScreen extends ConsumerStatefulWidget {
 class _ReviewConfirmScreenState extends ConsumerState<ReviewConfirmScreen> {
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final data = widget.data ?? {};
     final module = data['module'] as String? ?? 'schedule';
-    final imagePath = data['image_path'] as String?;
+    final imageBytes = data['image_bytes'] as Uint8List?;
+    final fullText = data['full_text'] as String? ?? '';
     final initialFields = (data['fields'] as Map<String, dynamic>?) ?? {};
-    final confidences = (data['confidence'] as Map<String, double>?) ?? {};
+    final confidence = (data['confidence'] as num?)?.toDouble() ?? 0.88;
 
     final isSchedule = module == 'schedule';
     final fieldsDef = isSchedule ? FieldDefinitions.scheduleFields : FieldDefinitions.solicitationFields;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Review Scanned Data')),
+      appBar: AppBar(
+        title: Text(isSchedule ? 'Confirm Scanned Event' : 'Confirm Scanned Solicitation'),
+        actions: [
+          if (fullText.trim().isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.description_outlined),
+              tooltip: 'View Raw OCR Text',
+              onPressed: () {
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                  ),
+                  builder: (ctx) => DraggableScrollableSheet(
+                    initialChildSize: 0.6,
+                    maxChildSize: 0.9,
+                    minChildSize: 0.4,
+                    expand: false,
+                    builder: (_, scrollController) => Padding(
+                      padding: const EdgeInsets.all(20.0),
+                      child: ListView(
+                        controller: scrollController,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Recognized Document Text',
+                                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close),
+                                onPressed: () => Navigator.pop(ctx),
+                              ),
+                            ],
+                          ),
+                          const Divider(),
+                          SelectableText(
+                            fullText,
+                            style: const TextStyle(fontFamily: 'monospace', fontSize: 13, height: 1.5),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
       body: ListView(
         children: [
-          // Original image preview
-          if (imagePath != null && File(imagePath).existsSync())
+          // Original image preview (Cross-platform Uint8List bytes)
+          if (imageBytes != null && imageBytes.isNotEmpty)
             Container(
-              height: 180,
-              color: Colors.black12,
-              child: Image.file(File(imagePath), fit: BoxFit.contain),
+              height: 220,
+              width: double.infinity,
+              color: Colors.black.withOpacity(0.04),
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: Image.memory(
+                      imageBytes,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => const Center(
+                        child: Icon(Icons.image_not_supported_outlined, size: 40, color: Colors.grey),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 12,
+                    right: 12,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.verified, size: 14, color: Colors.green.shade400),
+                          const SizedBox(width: 6),
+                          Text(
+                            '${(confidence * 100).toInt()}% Match',
+                            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
 
-          // Confidence notice
+          // Confidence notification card
           Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                const Icon(Icons.info_outline, color: Colors.amber),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Review and verify extracted fields before saving. Low-confidence fields can be edited.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: Card(
+              elevation: 0,
+              color: theme.colorScheme.secondaryContainer.withOpacity(0.4),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Row(
+                  children: [
+                    Icon(Icons.auto_awesome, color: theme.colorScheme.primary, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Extracted details are pre-filled below. Review and adjust any field if needed before saving.',
+                        style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
 
-          // Form to edit and confirm
+          // Form to edit and confirm (Embedded directly without nested scroll lag)
           DynamicForm(
             fields: fieldsDef,
             initialValues: initialFields,
-            submitButtonText: 'Confirm & Save',
+            submitButtonText: isSchedule ? 'Save Event to Schedule' : 'Save Solicitation',
+            isScrollable: false,
             onSave: (confirmedValues) {
               final now = DateTime.now().toUtc();
               final id = const Uuid().v4();
@@ -79,11 +175,20 @@ class _ReviewConfirmScreenState extends ConsumerState<ReviewConfirmScreen> {
                   startTime: confirmedValues['start_time'] as String?,
                   endTime: confirmedValues['end_time'] as String?,
                   location: confirmedValues['location'] as String?,
+                  priority: confirmedValues['priority'] as String? ?? 'medium',
+                  category: confirmedValues['category'] as String?,
                   status: 'Active',
                   createdAt: now,
                   updatedAt: now,
                 );
                 ref.read(scheduleListProvider.notifier).addItem(item);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Saved "${item.title}" to schedule'),
+                    backgroundColor: Colors.green.shade800,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
                 context.go('/schedule');
               } else {
                 final item = SolicitationItem(
@@ -94,15 +199,25 @@ class _ReviewConfirmScreenState extends ConsumerState<ReviewConfirmScreen> {
                   amountRequested: (confirmedValues['amount_requested'] as num?)?.toDouble(),
                   email: confirmedValues['email'] as String?,
                   phone: confirmedValues['phone'] as String?,
+                  priority: confirmedValues['priority'] as String? ?? 'medium',
+                  category: confirmedValues['category'] as String?,
                   status: 'Draft',
                   createdAt: now,
                   updatedAt: now,
                 );
                 ref.read(solicitationListProvider.notifier).addItem(item);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Saved "${item.title}" to solicitations'),
+                    backgroundColor: Colors.green.shade800,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
                 context.go('/solicitation');
               }
             },
           ),
+          const SizedBox(height: 32),
         ],
       ),
     );

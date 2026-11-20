@@ -10,6 +10,7 @@ class DynamicForm extends StatefulWidget {
   final ValueChanged<Map<String, dynamic>> onSave;
   final String submitButtonText;
   final List<String> customCategories;
+  final bool isScrollable;
 
   const DynamicForm({
     super.key,
@@ -18,6 +19,7 @@ class DynamicForm extends StatefulWidget {
     required this.onSave,
     this.submitButtonText = 'Save',
     this.customCategories = const [],
+    this.isScrollable = true,
   });
 
   @override
@@ -83,32 +85,52 @@ class _DynamicFormState extends State<DynamicForm> {
       }
     }
 
+    final content = <Widget>[
+      for (final section in FieldSection.values)
+        if (sections.containsKey(section) && sections[section]!.isNotEmpty) ...[
+          _buildSectionHeader(section),
+          const SizedBox(height: DesignTokens.spaceSm),
+          for (final field in sections[section]!) ...[
+            _buildField(field),
+            const SizedBox(height: DesignTokens.spaceMd),
+          ],
+          const SizedBox(height: DesignTokens.spaceSm),
+        ],
+      const SizedBox(height: DesignTokens.spaceLg),
+      FilledButton.icon(
+        icon: const Icon(Icons.check_circle_outline),
+        onPressed: _submit,
+        style: FilledButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        label: Text(
+          widget.submitButtonText,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+        ),
+      ),
+    ];
+
+    if (!widget.isScrollable) {
+      return Form(
+        key: _formKey,
+        child: Padding(
+          padding: const EdgeInsets.all(DesignTokens.spaceLg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: content,
+          ),
+        ),
+      );
+    }
+
     return Form(
       key: _formKey,
       child: ListView(
         padding: const EdgeInsets.all(DesignTokens.spaceLg),
         shrinkWrap: true,
         physics: const ClampingScrollPhysics(),
-        children: [
-          for (final section in FieldSection.values)
-            if (sections.containsKey(section) && sections[section]!.isNotEmpty) ...[
-              _buildSectionHeader(section),
-              const SizedBox(height: DesignTokens.spaceSm),
-              for (final field in sections[section]!) ...[
-                _buildField(field),
-                const SizedBox(height: DesignTokens.spaceMd),
-              ],
-              const SizedBox(height: DesignTokens.spaceSm),
-            ],
-          const SizedBox(height: DesignTokens.spaceLg),
-          ElevatedButton(
-            onPressed: _submit,
-            child: Text(
-              widget.submitButtonText,
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-            ),
-          ),
-        ],
+        children: content,
       ),
     );
   }

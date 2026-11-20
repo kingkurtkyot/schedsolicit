@@ -19,6 +19,9 @@ build/
 backend/data/
 backend/ml_models/*.pkl
 backend/.env
+*.db
+*.sqlite
+*.sqlite3
 
 # Flutter
 flutter_app/.dart_tool/

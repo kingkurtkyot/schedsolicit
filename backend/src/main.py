@@ -1,7 +1,7 @@
 """FastAPI main application entry point."""
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request, Response, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -70,3 +70,11 @@ app.include_router(viewer_router)
 @app.get("/api/view/health")
 async def health_check():
     return {"status": "ok", "service": "SchedSolicit API"}
+
+
+@app.post("/api/ocr/parse")
+async def ocr_parse_endpoint(file: UploadFile = File(...)):
+    """Public OCR endpoint to parse text and auto-extract fields from scanned images."""
+    content = await file.read()
+    from src.services import ocr_service
+    return ocr_service.process_image(content)

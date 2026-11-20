@@ -18,31 +18,32 @@ class ResponsiveScaffold extends StatelessWidget {
     final width = MediaQuery.sizeOf(context).width;
 
     if (width < DesignTokens.breakpointCompact) {
-      // Phone layout with BottomNavigationBar
+      // Phone layout with modern Material 3 NavigationBar
       return Scaffold(
         body: body,
-        bottomNavigationBar: BottomNavigationBar(
-          currentIndex: currentIndex,
-          onTap: onDestinationSelected,
-          items: const [
-            BottomNavigationBarItem(
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: currentIndex,
+          onDestinationSelected: onDestinationSelected,
+          elevation: 2,
+          destinations: const [
+            NavigationDestination(
               icon: Icon(Icons.calendar_today_outlined),
-              activeIcon: Icon(Icons.calendar_today),
+              selectedIcon: Icon(Icons.calendar_today),
               label: 'Schedule',
             ),
-            BottomNavigationBarItem(
+            NavigationDestination(
               icon: Icon(Icons.volunteer_activism_outlined),
-              activeIcon: Icon(Icons.volunteer_activism),
+              selectedIcon: Icon(Icons.volunteer_activism),
               label: 'Solicitations',
             ),
-            BottomNavigationBarItem(
+            NavigationDestination(
               icon: Icon(Icons.share_outlined),
-              activeIcon: Icon(Icons.share),
+              selectedIcon: Icon(Icons.share),
               label: 'Share',
             ),
-            BottomNavigationBarItem(
+            NavigationDestination(
               icon: Icon(Icons.settings_outlined),
-              activeIcon: Icon(Icons.settings),
+              selectedIcon: Icon(Icons.settings),
               label: 'Settings',
             ),
           ],
