@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.mypy_cache/
+.pytest_cache/
+
+# Backend
+backend/data/
+backend/ml_models/*.pkl
+backend/.env
+
+# Flutter
+flutter_app/.dart_tool/
+flutter_app/.packages
+flutter_app/build/
+flutter_app/.flutter-plugins
+flutter_app/.flutter-plugins-dependencies
+flutter_app/pubspec.lock
+flutter_app/lib/core/database/*.g.dart
+
+# Node / Next.js
+viewer_portal/node_modules/
+viewer_portal/.next/
+viewer_portal/out/
+viewer_portal/.env.local
+viewer_portal/.env*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-data/
+
+# Misc
+*.log
+*.tmp
+coverage/

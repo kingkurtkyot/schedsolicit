@@ -1,0 +1,56 @@
+{
+  "schedule": {
+    "fields": [
+      {"key": "title", "label": "Title", "type": "text", "required": true, "maxLength": 200, "section": "basic", "searchWeight": 3},
+      {"key": "description", "label": "Description", "type": "textarea", "required": false, "section": "basic", "searchWeight": 1},
+      {"key": "event_date", "label": "Event Date", "type": "date", "required": true, "section": "timing"},
+      {"key": "start_time", "label": "Start Time", "type": "time", "required": false, "section": "timing", "dependsOn": {"all_day": false}},
+      {"key": "end_time", "label": "End Time", "type": "time", "required": false, "section": "timing", "dependsOn": {"all_day": false}},
+      {"key": "all_day", "label": "All Day", "type": "checkbox", "required": false, "section": "timing", "defaultValue": false},
+      {"key": "location", "label": "Location", "type": "text", "required": false, "section": "details", "searchWeight": 2},
+      {"key": "category", "label": "Category", "type": "dropdown", "required": false, "section": "details", "useCustomCategories": true},
+      {"key": "priority", "label": "Priority", "type": "dropdown", "required": false, "section": "details", "options": ["low", "medium", "high", "urgent"], "defaultValue": "medium"},
+      {"key": "repeat_rule", "label": "Repeat", "type": "repeat", "required": false, "section": "timing"},
+      {"key": "reminder_offsets", "label": "Reminders", "type": "reminders", "required": false, "section": "timing", "defaultValue": [3600]},
+      {"key": "status", "label": "Status", "type": "dropdown", "required": false, "section": "meta", "options": ["Active", "Done", "Cancelled", "Past"], "defaultValue": "Active"},
+      {"key": "notes", "label": "Notes", "type": "textarea", "required": false, "section": "details", "searchWeight": 1},
+      {"key": "actual_start", "label": "Actual Start", "type": "datetime", "required": false, "section": "tracking"},
+      {"key": "actual_end", "label": "Actual End", "type": "datetime", "required": false, "section": "tracking"},
+      {"key": "source_date", "label": "Source Date", "type": "datetime", "required": false, "section": "tracking", "readOnly": true}
+    ],
+    "historyStatuses": ["Done", "Cancelled", "Past"],
+    "doneStatuses": ["Done"],
+    "dateField": "event_date",
+    "deadlineField": null
+  },
+  "solicitation": {
+    "fields": [
+      {"key": "title", "label": "Title", "type": "text", "required": true, "maxLength": 200, "section": "basic", "searchWeight": 3},
+      {"key": "organization", "label": "Organization", "type": "text", "required": false, "section": "contact", "searchWeight": 2},
+      {"key": "contact_person", "label": "Contact Person", "type": "text", "required": false, "section": "contact", "searchWeight": 2},
+      {"key": "phone", "label": "Phone", "type": "phone", "required": false, "section": "contact"},
+      {"key": "email", "label": "Email", "type": "email", "required": false, "section": "contact"},
+      {"key": "purpose", "label": "Purpose", "type": "textarea", "required": false, "section": "basic", "searchWeight": 1},
+      {"key": "amount_requested", "label": "Amount Requested", "type": "currency", "required": false, "section": "request"},
+      {"key": "quantity_requested", "label": "Quantity Requested", "type": "text", "required": false, "section": "request"},
+      {"key": "requested_date", "label": "Date Requested", "type": "date", "required": false, "section": "timing"},
+      {"key": "deadline", "label": "Deadline", "type": "date", "required": false, "section": "timing"},
+      {"key": "follow_up_date", "label": "Follow-Up Date", "type": "date", "required": false, "section": "timing"},
+      {"key": "status", "label": "Status", "type": "dropdown", "required": false, "section": "meta", "options": ["Draft", "Sent", "Pending", "Approved", "Declined", "Given", "Done", "Cancelled"], "defaultValue": "Draft"},
+      {"key": "priority", "label": "Priority", "type": "dropdown", "required": false, "section": "details", "options": ["low", "medium", "high", "urgent"], "defaultValue": "medium"},
+      {"key": "category", "label": "Category", "type": "dropdown", "required": false, "section": "details", "useCustomCategories": true},
+      {"key": "location", "label": "Location", "type": "text", "required": false, "section": "details", "searchWeight": 2},
+      {"key": "notes", "label": "Notes", "type": "textarea", "required": false, "section": "details", "searchWeight": 1},
+      {"key": "given_date", "label": "Date Given", "type": "date", "required": false, "section": "fulfillment"},
+      {"key": "given_amount", "label": "Amount Given", "type": "currency", "required": false, "section": "fulfillment"},
+      {"key": "given_item", "label": "Item Given", "type": "text", "required": false, "section": "fulfillment"},
+      {"key": "given_by", "label": "Given By", "type": "text", "required": false, "section": "fulfillment"},
+      {"key": "given_to", "label": "Given To", "type": "text", "required": false, "section": "fulfillment"},
+      {"key": "source_date", "label": "Source Date", "type": "datetime", "required": false, "section": "tracking", "readOnly": true}
+    ],
+    "historyStatuses": ["Done", "Approved", "Declined", "Given", "Cancelled"],
+    "doneStatuses": ["Done", "Given"],
+    "dateField": "requested_date",
+    "deadlineField": "deadline"
+  }
+}

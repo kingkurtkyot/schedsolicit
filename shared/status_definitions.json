@@ -1,0 +1,44 @@
+{
+  "schedule": {
+    "statuses": {
+      "Active": {"color": "#2196F3", "icon": "play_circle", "isActive": true, "sortOrder": 0},
+      "Done": {"color": "#4CAF50", "icon": "check_circle", "isActive": false, "sortOrder": 1},
+      "Cancelled": {"color": "#9E9E9E", "icon": "cancel", "isActive": false, "sortOrder": 2},
+      "Past": {"color": "#BDBDBD", "icon": "history", "isActive": false, "sortOrder": 3}
+    },
+    "transitions": {
+      "Active": ["Done", "Cancelled"],
+      "Done": ["Active"],
+      "Cancelled": ["Active"],
+      "Past": ["Active", "Done"]
+    }
+  },
+  "solicitation": {
+    "statuses": {
+      "Draft": {"color": "#78909C", "icon": "edit_note", "isActive": true, "sortOrder": 0},
+      "Sent": {"color": "#29B6F6", "icon": "send", "isActive": true, "sortOrder": 1},
+      "Pending": {"color": "#FF9800", "icon": "hourglass_empty", "isActive": true, "sortOrder": 2},
+      "Approved": {"color": "#00C853", "icon": "thumb_up", "isActive": false, "sortOrder": 3},
+      "Declined": {"color": "#F44336", "icon": "thumb_down", "isActive": false, "sortOrder": 4},
+      "Given": {"color": "#7C4DFF", "icon": "card_giftcard", "isActive": false, "sortOrder": 5},
+      "Done": {"color": "#4CAF50", "icon": "check_circle", "isActive": false, "sortOrder": 6},
+      "Cancelled": {"color": "#9E9E9E", "icon": "cancel", "isActive": false, "sortOrder": 7}
+    },
+    "transitions": {
+      "Draft": ["Sent", "Cancelled"],
+      "Sent": ["Pending", "Approved", "Declined", "Cancelled"],
+      "Pending": ["Approved", "Declined", "Given", "Cancelled"],
+      "Approved": ["Given", "Done", "Cancelled"],
+      "Declined": ["Pending", "Draft"],
+      "Given": ["Done"],
+      "Done": ["Pending"],
+      "Cancelled": ["Draft"]
+    }
+  },
+  "priorities": {
+    "low": {"color": "#66BB6A", "icon": "arrow_downward", "sortOrder": 0},
+    "medium": {"color": "#FFA726", "icon": "remove", "sortOrder": 1},
+    "high": {"color": "#EF5350", "icon": "arrow_upward", "sortOrder": 2},
+    "urgent": {"color": "#D50000", "icon": "priority_high", "sortOrder": 3}
+  }
+}

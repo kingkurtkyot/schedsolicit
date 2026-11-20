@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: schedsolicit-backend
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:///data/schedsolicit.db
+      - SECRET_KEY=replace_this_with_a_secure_random_key_in_production
+      - ACCESS_TOKEN_EXPIRE_MINUTES=1440
+      - CORS_ORIGINS=["http://localhost:3000","http://localhost:80","http://localhost"]
+      - DATA_DIR=/app/data
+    volumes:
+      - backend-data:/app/data
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/owner/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  viewer:
+    build:
+      context: ./viewer_portal
+      dockerfile: Dockerfile
+    container_name: schedsolicit-viewer
+    restart: unless-stopped
+    environment:
+      - INTERNAL_API_URL=http://backend:8000
+      - PORT=3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  nginx:
+    image: nginx:alpine
+    container_name: schedsolicit-proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+      - viewer
+
+volumes:
+  backend-data:

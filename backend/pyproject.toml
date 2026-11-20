@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "schedsolicit-backend"
+version = "1.0.0"
+description = "FastAPI backend for SchedSolicit"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "sqlalchemy[asyncio]>=2.0.25",
+    "aiosqlite>=0.19.0",
+    "python-jose[cryptography]>=3.3.0",
+    "argon2-cffi>=23.1.0",
+    "pydantic>=2.6.0",
+    "pydantic-settings>=2.1.0",
+    "slowapi>=0.1.9",
+    "python-multipart>=0.0.6",
+    "openpyxl>=3.1.2",
+    "reportlab>=4.0.9",
+    "Pillow>=10.2.0",
+    "icalendar>=5.0.11",
+    "easyocr>=1.7.1",
+    "dateparser>=1.2.0",
+    "scikit-learn>=1.4.0",
+    "alembic>=1.13.1",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
