@@ -2,6 +2,8 @@ import 'package:dio/dio.dart';
 import '../config/app_config.dart';
 
 class ApiClient {
+  static final ApiClient instance = ApiClient();
+
   final Dio dio;
   String? _authToken;
 
@@ -15,6 +17,12 @@ class ApiClient {
           headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
         )) {
     _setupInterceptors();
+  }
+
+  String get baseUrl => dio.options.baseUrl;
+
+  void setBaseUrl(String url) {
+    dio.options.baseUrl = url.endsWith('/') ? url.substring(0, url.length - 1) : url;
   }
 
   void setAuthToken(String? token) {

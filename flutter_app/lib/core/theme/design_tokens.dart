@@ -11,11 +11,11 @@ class DesignTokens {
   static const Color colorMint = Color(0xFF00C853);
   static const Color colorLime = Color(0xFF64DD17);
 
-  // Surfaces (Never pure white or pure black)
-  static const Color surfaceLight = Color(0xFFF5F9F5);
-  static const Color surfaceDark = Color(0xFF1A2B1A);
-  static const Color surfaceLightContainer = Color(0xFFEDF5ED);
-  static const Color surfaceDarkContainer = Color(0xFF243324);
+  // Surfaces (Clean, crisp, modern SaaS aesthetic)
+  static const Color surfaceLight = Color(0xFFF8FAF8);
+  static const Color surfaceDark = Color(0xFF141D14);
+  static const Color surfaceLightContainer = Color(0xFFFFFFFF);
+  static const Color surfaceDarkContainer = Color(0xFF1E2A1E);
 
   // Priority Colors
   static const Color priorityLow = Color(0xFF66BB6A);

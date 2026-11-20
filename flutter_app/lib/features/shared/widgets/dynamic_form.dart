@@ -67,9 +67,15 @@ class _DynamicFormState extends State<DynamicForm> {
   void _submit() {
     if (_formKey.currentState?.validate() ?? false) {
       _formKey.currentState?.save();
-      // Sync text controllers into values
+      // Sync text controllers into values with proper type conversion
       for (final entry in _controllers.entries) {
-        _values[entry.key] = entry.value.text;
+        final fieldDef = widget.fields.where((f) => f.key == entry.key).firstOrNull;
+        if (fieldDef != null && fieldDef.type == FieldType.currency) {
+          final clean = entry.value.text.replaceAll(',', '').trim();
+          _values[entry.key] = double.tryParse(clean);
+        } else {
+          _values[entry.key] = entry.value.text;
+        }
       }
       widget.onSave(_values);
     }

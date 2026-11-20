@@ -32,7 +32,6 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
   Widget build(BuildContext context) {
     final schedulesAsync = ref.watch(scheduleListProvider);
     final filter = ref.watch(filterProvider);
-    final notifier = ref.read(scheduleListProvider.notifier);
     final filterNotifier = ref.read(filterProvider.notifier);
 
     return Scaffold(
@@ -144,84 +143,108 @@ class _ScheduleTabState extends ConsumerState<ScheduleTab> {
   }
 
   void _openCreateDialog() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (ctx) {
-        return Scaffold(
-          appBar: AppBar(title: const Text('Create Schedule Event')),
-          body: DynamicForm(
-            fields: FieldDefinitions.scheduleFields,
-            submitButtonText: 'Create Event',
-            onSave: (values) {
-              final now = DateTime.now().toUtc();
-              final newItem = ScheduleItem(
-                id: const Uuid().v4(),
-                title: values['title'] as String,
-                description: values['description'] as String?,
-                eventDate: values['event_date'] as DateTime? ?? DateTime.now(),
-                startTime: values['start_time'] as String?,
-                endTime: values['end_time'] as String?,
-                allDay: values['all_day'] == true,
-                location: values['location'] as String?,
-                category: values['category'] as String?,
-                priority: values['priority'] as String? ?? 'medium',
-                repeatRule: values['repeat_rule'] as String?,
-                status: values['status'] as String? ?? 'Active',
-                notes: values['notes'] as String?,
-                createdAt: now,
-                updatedAt: now,
-              );
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (ctx) {
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text('Create Schedule Event'),
+              leading: IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.of(ctx).pop(),
+              ),
+            ),
+            body: DynamicForm(
+              fields: FieldDefinitions.scheduleFields,
+              submitButtonText: 'Create Event',
+              onSave: (values) {
+                final now = DateTime.now().toUtc();
+                final newItem = ScheduleItem(
+                  id: const Uuid().v4(),
+                  title: values['title'] as String,
+                  description: values['description'] as String?,
+                  eventDate: values['event_date'] as DateTime? ?? DateTime.now(),
+                  startTime: values['start_time'] as String?,
+                  endTime: values['end_time'] as String?,
+                  allDay: values['all_day'] == true,
+                  location: values['location'] as String?,
+                  category: values['category'] as String?,
+                  priority: values['priority'] as String? ?? 'medium',
+                  repeatRule: values['repeat_rule'] as String?,
+                  status: values['status'] as String? ?? 'Active',
+                  notes: values['notes'] as String?,
+                  createdAt: now,
+                  updatedAt: now,
+                );
 
-              ref.read(scheduleListProvider.notifier).addItem(newItem);
-              Navigator.of(ctx).pop();
-            },
-          ),
-        );
-      },
+                ref.read(scheduleListProvider.notifier).addItem(newItem);
+                Navigator.of(ctx).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Created event "${newItem.title}"'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+            ),
+          );
+        },
+      ),
     );
   }
 
   void _openEditDialog(ScheduleItem item) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (ctx) {
-        return Scaffold(
-          appBar: AppBar(title: const Text('Edit Schedule Event')),
-          body: DynamicForm(
-            fields: FieldDefinitions.scheduleFields,
-            initialValues: item.toJson(),
-            submitButtonText: 'Update Event',
-            onSave: (values) {
-              final updated = ScheduleItem(
-                id: item.id,
-                title: values['title'] as String,
-                description: values['description'] as String?,
-                eventDate: values['event_date'] is DateTime
-                    ? values['event_date'] as DateTime
-                    : DateTime.tryParse(values['event_date']?.toString() ?? '') ?? item.eventDate,
-                startTime: values['start_time'] as String?,
-                endTime: values['end_time'] as String?,
-                allDay: values['all_day'] == true,
-                location: values['location'] as String?,
-                category: values['category'] as String?,
-                priority: values['priority'] as String? ?? 'medium',
-                repeatRule: values['repeat_rule'] as String?,
-                status: values['status'] as String? ?? item.status,
-                notes: values['notes'] as String?,
-                createdAt: item.createdAt,
-                updatedAt: DateTime.now().toUtc(),
-              );
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (ctx) {
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text('Edit Schedule Event'),
+              leading: IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.of(ctx).pop(),
+              ),
+            ),
+            body: DynamicForm(
+              fields: FieldDefinitions.scheduleFields,
+              initialValues: item.toJson(),
+              submitButtonText: 'Update Event',
+              onSave: (values) {
+                final updated = ScheduleItem(
+                  id: item.id,
+                  title: values['title'] as String,
+                  description: values['description'] as String?,
+                  eventDate: values['event_date'] is DateTime
+                      ? values['event_date'] as DateTime
+                      : DateTime.tryParse(values['event_date']?.toString() ?? '') ?? item.eventDate,
+                  startTime: values['start_time'] as String?,
+                  endTime: values['end_time'] as String?,
+                  allDay: values['all_day'] == true,
+                  location: values['location'] as String?,
+                  category: values['category'] as String?,
+                  priority: values['priority'] as String? ?? 'medium',
+                  repeatRule: values['repeat_rule'] as String?,
+                  status: values['status'] as String? ?? item.status,
+                  notes: values['notes'] as String?,
+                  createdAt: item.createdAt,
+                  updatedAt: DateTime.now().toUtc(),
+                );
 
-              ref.read(scheduleListProvider.notifier).updateItem(updated);
-              Navigator.of(ctx).pop();
-            },
-          ),
-        );
-      },
+                ref.read(scheduleListProvider.notifier).updateItem(updated);
+                Navigator.of(ctx).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Updated event "${updated.title}"'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+            ),
+          );
+        },
+      ),
     );
   }
 

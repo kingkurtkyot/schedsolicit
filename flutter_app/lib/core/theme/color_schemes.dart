@@ -28,13 +28,13 @@ class AppColorSchemes {
     return base.copyWith(
       surface: DesignTokens.surfaceLight,
       surfaceContainer: DesignTokens.surfaceLightContainer,
-      surfaceContainerHigh: const Color(0xFFE2EBE2),
-      surfaceContainerHighest: const Color(0xFFD6E3D6),
+      surfaceContainerHigh: const Color(0xFFF0F5F0),
+      surfaceContainerHighest: const Color(0xFFE3EAE3),
       surfaceTint: seed,
       onSurface: const Color(0xFF131D13),
-      onSurfaceVariant: const Color(0xFF3F4A3F),
+      onSurfaceVariant: const Color(0xFF4A554A),
       outline: const Color(0xFF707A70),
-      outlineVariant: const Color(0xFFC0CCC0),
+      outlineVariant: const Color(0xFFD8E2D8),
     );
   }
 

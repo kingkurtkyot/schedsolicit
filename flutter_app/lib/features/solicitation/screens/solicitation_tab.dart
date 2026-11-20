@@ -31,7 +31,6 @@ class _SolicitationTabState extends ConsumerState<SolicitationTab> {
   Widget build(BuildContext context) {
     final solicitationsAsync = ref.watch(solicitationListProvider);
     final filter = ref.watch(filterProvider);
-    final notifier = ref.read(solicitationListProvider.notifier);
     final filterNotifier = ref.read(filterProvider.notifier);
 
     return Scaffold(
@@ -54,7 +53,6 @@ class _SolicitationTabState extends ConsumerState<SolicitationTab> {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, _) => Center(child: Text('Error: $err')),
         data: (items) {
-          // Calculate summary strip numbers
           double totalRequested = 0;
           double totalGiven = 0;
           int approvedCount = 0;
@@ -150,89 +148,113 @@ class _SolicitationTabState extends ConsumerState<SolicitationTab> {
   }
 
   void _openCreateDialog() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (ctx) {
-        return Scaffold(
-          appBar: AppBar(title: const Text('Create Solicitation')),
-          body: DynamicForm(
-            fields: FieldDefinitions.solicitationFields,
-            submitButtonText: 'Save Solicitation',
-            onSave: (values) {
-              final now = DateTime.now().toUtc();
-              final newItem = SolicitationItem(
-                id: const Uuid().v4(),
-                title: values['title'] as String,
-                organization: values['organization'] as String?,
-                contactPerson: values['contact_person'] as String?,
-                phone: values['phone'] as String?,
-                email: values['email'] as String?,
-                purpose: values['purpose'] as String?,
-                amountRequested: (values['amount_requested'] as num?)?.toDouble(),
-                quantityRequested: values['quantity_requested'] as String?,
-                deadline: values['deadline'] as DateTime?,
-                status: values['status'] as String? ?? 'Draft',
-                priority: values['priority'] as String? ?? 'medium',
-                category: values['category'] as String?,
-                notes: values['notes'] as String?,
-                createdAt: now,
-                updatedAt: now,
-              );
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (ctx) {
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text('Create Solicitation'),
+              leading: IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.of(ctx).pop(),
+              ),
+            ),
+            body: DynamicForm(
+              fields: FieldDefinitions.solicitationFields,
+              submitButtonText: 'Save Solicitation',
+              onSave: (values) {
+                final now = DateTime.now().toUtc();
+                final newItem = SolicitationItem(
+                  id: const Uuid().v4(),
+                  title: values['title'] as String,
+                  organization: values['organization'] as String?,
+                  contactPerson: values['contact_person'] as String?,
+                  phone: values['phone'] as String?,
+                  email: values['email'] as String?,
+                  purpose: values['purpose'] as String?,
+                  amountRequested: (values['amount_requested'] as num?)?.toDouble(),
+                  quantityRequested: values['quantity_requested'] as String?,
+                  deadline: values['deadline'] as DateTime?,
+                  status: values['status'] as String? ?? 'Draft',
+                  priority: values['priority'] as String? ?? 'medium',
+                  category: values['category'] as String?,
+                  notes: values['notes'] as String?,
+                  createdAt: now,
+                  updatedAt: now,
+                );
 
-              ref.read(solicitationListProvider.notifier).addItem(newItem);
-              Navigator.of(ctx).pop();
-            },
-          ),
-        );
-      },
+                ref.read(solicitationListProvider.notifier).addItem(newItem);
+                Navigator.of(ctx).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Created solicitation "${newItem.title}"'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+            ),
+          );
+        },
+      ),
     );
   }
 
   void _openEditDialog(SolicitationItem item) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (ctx) {
-        return Scaffold(
-          appBar: AppBar(title: const Text('Edit Solicitation')),
-          body: DynamicForm(
-            fields: FieldDefinitions.solicitationFields,
-            initialValues: item.toJson(),
-            submitButtonText: 'Update Solicitation',
-            onSave: (values) {
-              final updated = SolicitationItem(
-                id: item.id,
-                title: values['title'] as String,
-                organization: values['organization'] as String?,
-                contactPerson: values['contact_person'] as String?,
-                phone: values['phone'] as String?,
-                email: values['email'] as String?,
-                purpose: values['purpose'] as String?,
-                amountRequested: (values['amount_requested'] as num?)?.toDouble() ?? item.amountRequested,
-                quantityRequested: values['quantity_requested'] as String?,
-                deadline: values['deadline'] as DateTime? ?? item.deadline,
-                givenDate: values['given_date'] as DateTime? ?? item.givenDate,
-                givenAmount: (values['given_amount'] as num?)?.toDouble() ?? item.givenAmount,
-                givenItem: values['given_item'] as String? ?? item.givenItem,
-                givenBy: values['given_by'] as String? ?? item.givenBy,
-                givenTo: values['given_to'] as String? ?? item.givenTo,
-                status: values['status'] as String? ?? item.status,
-                priority: values['priority'] as String? ?? item.priority,
-                category: values['category'] as String? ?? item.category,
-                notes: values['notes'] as String?,
-                createdAt: item.createdAt,
-                updatedAt: DateTime.now().toUtc(),
-              );
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (ctx) {
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text('Edit Solicitation'),
+              leading: IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.of(ctx).pop(),
+              ),
+            ),
+            body: DynamicForm(
+              fields: FieldDefinitions.solicitationFields,
+              initialValues: item.toJson(),
+              submitButtonText: 'Update Solicitation',
+              onSave: (values) {
+                final updated = SolicitationItem(
+                  id: item.id,
+                  title: values['title'] as String,
+                  organization: values['organization'] as String?,
+                  contactPerson: values['contact_person'] as String?,
+                  phone: values['phone'] as String?,
+                  email: values['email'] as String?,
+                  purpose: values['purpose'] as String?,
+                  amountRequested: (values['amount_requested'] as num?)?.toDouble() ?? item.amountRequested,
+                  quantityRequested: values['quantity_requested'] as String?,
+                  deadline: values['deadline'] as DateTime? ?? item.deadline,
+                  givenDate: values['given_date'] as DateTime? ?? item.givenDate,
+                  givenAmount: (values['given_amount'] as num?)?.toDouble() ?? item.givenAmount,
+                  givenItem: values['given_item'] as String? ?? item.givenItem,
+                  givenBy: values['given_by'] as String? ?? item.givenBy,
+                  givenTo: values['given_to'] as String? ?? item.givenTo,
+                  status: values['status'] as String? ?? item.status,
+                  priority: values['priority'] as String? ?? item.priority,
+                  category: values['category'] as String? ?? item.category,
+                  notes: values['notes'] as String?,
+                  createdAt: item.createdAt,
+                  updatedAt: DateTime.now().toUtc(),
+                );
 
-              ref.read(solicitationListProvider.notifier).updateItem(updated);
-              Navigator.of(ctx).pop();
-            },
-          ),
-        );
-      },
+                ref.read(solicitationListProvider.notifier).updateItem(updated);
+                Navigator.of(ctx).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Updated "${updated.title}"'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+            ),
+          );
+        },
+      ),
     );
   }
 

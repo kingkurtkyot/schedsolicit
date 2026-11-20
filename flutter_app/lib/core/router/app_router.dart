@@ -18,6 +18,24 @@ import '../../features/shared/widgets/responsive_scaffold.dart';
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 final GlobalKey<NavigatorState> _shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell');
 
+CustomTransitionPage<void> _buildSmoothTransition({
+  required BuildContext context,
+  required GoRouterState state,
+  required Widget child,
+}) {
+  return CustomTransitionPage<void>(
+    key: state.pageKey,
+    child: child,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      return FadeTransition(
+        opacity: CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+        child: child,
+      );
+    },
+    transitionDuration: const Duration(milliseconds: 200),
+  );
+}
+
 class AppRouter {
   AppRouter._();
 
@@ -27,7 +45,11 @@ class AppRouter {
     routes: [
       GoRoute(
         path: '/onboarding',
-        builder: (context, state) => const OnboardingScreen(),
+        pageBuilder: (context, state) => _buildSmoothTransition(
+          context: context,
+          state: state,
+          child: const OnboardingScreen(),
+        ),
       ),
       ShellRoute(
         navigatorKey: _shellNavigatorKey,
@@ -66,44 +88,72 @@ class AppRouter {
         routes: [
           GoRoute(
             path: '/schedule',
-            builder: (context, state) => const ScheduleTab(),
+            pageBuilder: (context, state) => _buildSmoothTransition(
+              context: context,
+              state: state,
+              child: const ScheduleTab(),
+            ),
             routes: [
               GoRoute(
                 path: 'detail/:id',
                 parentNavigatorKey: _rootNavigatorKey,
-                builder: (context, state) => ScheduleDetailScreen(
-                  id: state.pathParameters['id']!,
+                pageBuilder: (context, state) => _buildSmoothTransition(
+                  context: context,
+                  state: state,
+                  child: ScheduleDetailScreen(
+                    id: state.pathParameters['id']!,
+                  ),
                 ),
               ),
             ],
           ),
           GoRoute(
             path: '/solicitation',
-            builder: (context, state) => const SolicitationTab(),
+            pageBuilder: (context, state) => _buildSmoothTransition(
+              context: context,
+              state: state,
+              child: const SolicitationTab(),
+            ),
             routes: [
               GoRoute(
                 path: 'detail/:id',
                 parentNavigatorKey: _rootNavigatorKey,
-                builder: (context, state) => SolicitationDetailScreen(
-                  id: state.pathParameters['id']!,
+                pageBuilder: (context, state) => _buildSmoothTransition(
+                  context: context,
+                  state: state,
+                  child: SolicitationDetailScreen(
+                    id: state.pathParameters['id']!,
+                  ),
                 ),
               ),
             ],
           ),
           GoRoute(
             path: '/sharing',
-            builder: (context, state) => const ShareDashboardScreen(),
+            pageBuilder: (context, state) => _buildSmoothTransition(
+              context: context,
+              state: state,
+              child: const ShareDashboardScreen(),
+            ),
             routes: [
               GoRoute(
                 path: 'create',
                 parentNavigatorKey: _rootNavigatorKey,
-                builder: (context, state) => const CreateShareLinkScreen(),
+                pageBuilder: (context, state) => _buildSmoothTransition(
+                  context: context,
+                  state: state,
+                  child: const CreateShareLinkScreen(),
+                ),
               ),
             ],
           ),
           GoRoute(
             path: '/settings',
-            builder: (context, state) => const SettingsScreen(),
+            pageBuilder: (context, state) => _buildSmoothTransition(
+              context: context,
+              state: state,
+              child: const SettingsScreen(),
+            ),
           ),
         ],
       ),
@@ -111,13 +161,21 @@ class AppRouter {
       GoRoute(
         path: '/scan',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const ScanScreen(),
+        pageBuilder: (context, state) => _buildSmoothTransition(
+          context: context,
+          state: state,
+          child: const ScanScreen(),
+        ),
         routes: [
           GoRoute(
             path: 'review',
             parentNavigatorKey: _rootNavigatorKey,
-            builder: (context, state) => ReviewConfirmScreen(
-              data: state.extra as Map<String, dynamic>?,
+            pageBuilder: (context, state) => _buildSmoothTransition(
+              context: context,
+              state: state,
+              child: ReviewConfirmScreen(
+                data: state.extra as Map<String, dynamic>?,
+              ),
             ),
           ),
         ],
@@ -126,15 +184,23 @@ class AppRouter {
       GoRoute(
         path: '/export',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => ExportConfigScreen(
-          filter: state.extra as dynamic,
+        pageBuilder: (context, state) => _buildSmoothTransition(
+          context: context,
+          state: state,
+          child: ExportConfigScreen(
+            filter: state.extra as dynamic,
+          ),
         ),
         routes: [
           GoRoute(
             path: 'preview',
             parentNavigatorKey: _rootNavigatorKey,
-            builder: (context, state) => ExportPreviewScreen(
-              config: state.extra as Map<String, dynamic>?,
+            pageBuilder: (context, state) => _buildSmoothTransition(
+              context: context,
+              state: state,
+              child: ExportPreviewScreen(
+                config: state.extra as Map<String, dynamic>?,
+              ),
             ),
           ),
         ],
