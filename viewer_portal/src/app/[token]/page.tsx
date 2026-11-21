@@ -47,6 +47,10 @@ export default function TokenMainPage() {
     groupBy,
     activeFilterCount,
     setSearch,
+    setTimeMode,
+    previousTimeStep,
+    nextTimeStep,
+    jumpToToday,
     toggleCategory,
     toggleStatus,
     togglePriority,
@@ -185,6 +189,10 @@ export default function TokenMainPage() {
           activeCount={activeFilterCount}
           totalResults={pagination.total}
           onOpenFilterSheet={() => setIsFilterSheetOpen(true)}
+          onSetTimeMode={setTimeMode}
+          onPreviousStep={previousTimeStep}
+          onNextStep={nextTimeStep}
+          onJumpToToday={jumpToToday}
           onRemoveCategory={toggleCategory}
           onRemoveStatus={toggleStatus}
           onRemovePriority={togglePriority}

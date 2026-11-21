@@ -8,9 +8,14 @@ enum SortBy { date, priority, title, createdAt }
 
 enum SortOrder { asc, desc }
 
+enum TimeFilterMode { all, day, month, year, custom }
+
 class FilterState {
   final DateTimeRange? dateRange;
-  final Set<int> dayOfWeek; // 1 = Monday, 7 = Sunday
+  final TimeFilterMode timeMode;
+  final DateTime? _selectedTimeAnchor;
+  DateTime get selectedTimeAnchor => _selectedTimeAnchor ?? DateTime.now();
+  final Set<int> dayOfWeek;
   final int? month;
   final int? year;
   final Set<String> categories;
@@ -31,6 +36,8 @@ class FilterState {
 
   const FilterState({
     this.dateRange,
+    this.timeMode = TimeFilterMode.all,
+    DateTime? selectedTimeAnchor,
     this.dayOfWeek = const {},
     this.month,
     this.year,
@@ -49,41 +56,27 @@ class FilterState {
     this.sortBy = SortBy.date,
     this.sortOrder = SortOrder.asc,
     this.searchQuery,
-  });
+  }) : _selectedTimeAnchor = selectedTimeAnchor;
 
   bool get hasActiveFilters {
     return dateRange != null ||
-        dayOfWeek.isNotEmpty ||
-        month != null ||
-        year != null ||
+        timeMode != TimeFilterMode.all ||
         categories.isNotEmpty ||
         statuses.isNotEmpty ||
         priorities.isNotEmpty ||
         locations.isNotEmpty ||
         organizations.isNotEmpty ||
-        hasAttachment != null ||
-        hasReminder != null ||
-        recurringOnly != null ||
-        createdDateRange != null ||
-        givenDateRange != null ||
         (searchQuery != null && searchQuery!.trim().isNotEmpty);
   }
 
   int get activeFilterCount {
     int count = 0;
-    if (dateRange != null) count++;
-    if (dayOfWeek.isNotEmpty) count++;
-    if (month != null || year != null) count++;
+    if (dateRange != null || timeMode != TimeFilterMode.all) count++;
     if (categories.isNotEmpty) count += categories.length;
     if (statuses.isNotEmpty) count += statuses.length;
     if (priorities.isNotEmpty) count += priorities.length;
     if (locations.isNotEmpty) count += locations.length;
     if (organizations.isNotEmpty) count += organizations.length;
-    if (hasAttachment != null) count++;
-    if (hasReminder != null) count++;
-    if (recurringOnly != null) count++;
-    if (createdDateRange != null) count++;
-    if (givenDateRange != null) count++;
     if (searchQuery != null && searchQuery!.trim().isNotEmpty) count++;
     return count;
   }
@@ -91,6 +84,8 @@ class FilterState {
   FilterState copyWith({
     DateTimeRange? dateRange,
     bool clearDateRange = false,
+    TimeFilterMode? timeMode,
+    DateTime? selectedTimeAnchor,
     Set<int>? dayOfWeek,
     int? month,
     bool clearMonth = false,
@@ -120,6 +115,8 @@ class FilterState {
   }) {
     return FilterState(
       dateRange: clearDateRange ? null : (dateRange ?? this.dateRange),
+      timeMode: timeMode ?? this.timeMode,
+      selectedTimeAnchor: selectedTimeAnchor ?? this.selectedTimeAnchor,
       dayOfWeek: dayOfWeek ?? this.dayOfWeek,
       month: clearMonth ? null : (month ?? this.month),
       year: clearYear ? null : (year ?? this.year),
@@ -152,6 +149,7 @@ class FilterState {
       params['end_date'] = dateRange!.end.toIso8601String();
     }
     params['scope'] = scope.name;
+    params['time_mode'] = timeMode.name;
     params['sort_by'] = sortBy.name;
     params['sort_order'] = sortOrder.name;
     return params;

@@ -145,11 +145,15 @@ export interface SortState {
   direction: SortDirection;
 }
 
+export type TimeFilterMode = 'all' | 'day' | 'month' | 'year' | 'custom';
+
 export interface FilterState {
   search?: string;
   categories: string[];
   statuses: string[];
   priorities: Priority[];
+  timeMode?: TimeFilterMode;
+  timeAnchor?: string;
   dateRange?: {
     from?: string;
     to?: string;

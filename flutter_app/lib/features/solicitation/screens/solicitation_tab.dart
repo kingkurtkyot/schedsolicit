@@ -7,6 +7,7 @@ import '../../../core/config/field_definitions.dart';
 import '../../shared/models/filter_state.dart';
 import '../../shared/providers/filter_provider.dart';
 import '../../shared/widgets/view_switcher.dart';
+import '../../shared/widgets/time_filter_bar.dart';
 import '../../shared/widgets/filter_bar.dart';
 import '../../shared/widgets/calendar_view.dart';
 import '../../shared/widgets/grouped_list_view.dart';
@@ -101,6 +102,9 @@ class _SolicitationTabState extends ConsumerState<SolicitationTab> {
                 approvalRate: approvalRate,
                 countPerStatus: statusCounts,
               ),
+
+              // Time Mode Stepper & Live Search
+              const TimeFilterBar(searchHint: 'Search solicitations, organizations, contacts...'),
 
               // Filter Bar
               FilterBar(resultCount: items.length),

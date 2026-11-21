@@ -79,7 +79,19 @@ export function useViewerData({
         filtered = filtered.filter((item) => item.priority && filters.priorities.includes(item.priority));
       }
 
-      // 5. Sort
+      // 5. Date Range Filter (Day, Month, Year, Custom)
+      if (filters.dateRange && (filters.dateRange.from || filters.dateRange.to)) {
+        const fromTime = filters.dateRange.from ? new Date(filters.dateRange.from).getTime() : 0;
+        const toTime = filters.dateRange.to ? new Date(filters.dateRange.to).getTime() : Infinity;
+        filtered = filtered.filter((item) => {
+          const rawDate = item.event_date || item.eventDate || item.deadline || item.given_date || item.created_at;
+          if (!rawDate) return false;
+          const itemTime = new Date(rawDate).getTime();
+          return itemTime >= fromTime && itemTime <= toTime;
+        });
+      }
+
+      // 6. Sort
       filtered.sort((a, b) => {
         const dateA = new Date(a.event_date || a.eventDate || a.deadline || a.created_at || 0).getTime();
         const dateB = new Date(b.event_date || b.eventDate || b.deadline || b.created_at || 0).getTime();

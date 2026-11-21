@@ -87,8 +87,17 @@ class SolicitationListNotifier extends StateNotifier<AsyncValue<List<Solicitatio
         final match = item.title.toLowerCase().contains(q) ||
             (item.organization?.toLowerCase().contains(q) ?? false) ||
             (item.contactPerson?.toLowerCase().contains(q) ?? false) ||
-            (item.purpose?.toLowerCase().contains(q) ?? false);
+            (item.purpose?.toLowerCase().contains(q) ?? false) ||
+            (item.notes?.toLowerCase().contains(q) ?? false);
         if (!match) return false;
+      }
+
+      // Date Range Filter (Day, Month, Year, Custom)
+      if (filter.dateRange != null) {
+        final itemDate = item.deadline ?? item.givenDate ?? item.createdAt;
+        if (itemDate.isBefore(filter.dateRange!.start) || itemDate.isAfter(filter.dateRange!.end)) {
+          return false;
+        }
       }
 
       return true;
