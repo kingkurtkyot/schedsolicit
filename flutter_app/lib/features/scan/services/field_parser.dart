@@ -32,23 +32,23 @@ class FieldParser {
     // 1. Title Extraction
     final candidateTitle = _findBestScheduleTitle(lines);
     fields['title'] = candidateTitle;
-    conf['title'] = 0.92;
+    conf['title'] = 0.95;
 
-    // 2. Date Extraction
-    final parsedDate = _extractDate(text);
+    // 2. Date Extraction (Month, Day, Year, Ordinals, Multi-line support)
+    final parsedDate = _extractDate(text, lines);
     if (parsedDate != null) {
       fields['event_date'] = parsedDate;
-      conf['event_date'] = 0.96;
+      conf['event_date'] = 0.98;
     }
 
     // 3. Time Extraction (Start and End Time)
     final times = _extractTimes(text);
     if (times.isNotEmpty) {
       fields['start_time'] = times[0];
-      conf['start_time'] = 0.94;
+      conf['start_time'] = 0.95;
       if (times.length > 1) {
         fields['end_time'] = times[1];
-        conf['end_time'] = 0.90;
+        conf['end_time'] = 0.92;
       }
     }
 
@@ -56,18 +56,18 @@ class FieldParser {
     final location = _extractLocation(lines);
     if (location != null) {
       fields['location'] = location;
-      conf['location'] = 0.88;
+      conf['location'] = 0.92;
     }
 
     // 5. Category Detection
     fields['category'] = _detectScheduleCategory(text);
-    conf['category'] = 0.85;
+    conf['category'] = 0.90;
 
     // 6. Priority Detection
     fields['priority'] = _detectPriority(text);
-    conf['priority'] = 0.80;
+    conf['priority'] = 0.85;
 
-    // 7. Description / Notes
+    // 7. Description / Notes / Reception
     final description = _extractDescription(lines, title: candidateTitle);
     if (description != null && description.isNotEmpty) {
       fields['description'] = description;
@@ -92,47 +92,47 @@ class FieldParser {
     // 1. Title Extraction
     final candidateTitle = _findBestSolicitationTitle(lines);
     fields['title'] = candidateTitle;
-    conf['title'] = 0.90;
+    conf['title'] = 0.92;
 
     // 2. Amount Requested (PHP, $, ₱, USD, EUR, etc.)
     final amount = _extractAmount(text);
     if (amount != null && amount > 0) {
       fields['amount_requested'] = amount;
-      conf['amount_requested'] = 0.96;
+      conf['amount_requested'] = 0.98;
     }
 
     // 3. Organization Extraction
     final org = _extractOrganization(lines);
     if (org != null) {
       fields['organization'] = org;
-      conf['organization'] = 0.90;
+      conf['organization'] = 0.92;
     }
 
     // 4. Contact Person Extraction
     final contactPerson = _extractContactPerson(lines);
     if (contactPerson != null) {
       fields['contact_person'] = contactPerson;
-      conf['contact_person'] = 0.88;
+      conf['contact_person'] = 0.90;
     }
 
     // 5. Phone & Email
     final email = _extractEmail(text);
     if (email != null) {
       fields['email'] = email;
-      conf['email'] = 0.96;
+      conf['email'] = 0.98;
     }
 
     final phone = _extractPhone(text);
     if (phone != null) {
       fields['phone'] = phone;
-      conf['phone'] = 0.92;
+      conf['phone'] = 0.94;
     }
 
     // 6. Deadline Extraction
-    final deadline = _extractDate(text);
+    final deadline = _extractDate(text, lines);
     if (deadline != null) {
       fields['deadline'] = deadline;
-      conf['deadline'] = 0.88;
+      conf['deadline'] = 0.90;
     }
 
     // 7. Purpose / Description
@@ -140,7 +140,7 @@ class FieldParser {
     if (purpose != null) {
       fields['purpose'] = purpose;
       fields['notes'] = purpose;
-      conf['purpose'] = 0.85;
+      conf['purpose'] = 0.88;
     }
 
     // 8. Category & Priority
@@ -163,7 +163,8 @@ class FieldParser {
     const genericIgnore = [
       'you are invited to', 'invitation', 'cordially invited', 'save the date',
       'please join us', 'schedule', 'notice', 'announcement', 'memo',
-      'memorandum', 'program of activities', 'join us as we celebrate'
+      'memorandum', 'program of activities', 'join us as we celebrate',
+      'god\'s blessing', 'in honor of', 'celebrate with us'
     ];
 
     // Check for "Name + Event" pattern (e.g., "Jia Jizelle Christening")
@@ -224,23 +225,45 @@ class FieldParser {
         .trim();
   }
 
-  static DateTime? _extractDate(String text) {
-    // 1. Month Name: e.g. "November 28, 2026", "Nov 28 2026", "28 Nov 2026", "November 28th, 2026"
-    final monthNameRegex = RegExp(
+  static DateTime? _extractDate(String text, [List<String>? lines]) {
+    // 1. Month Name with Year on same line: e.g. "November 28, 2026", "Nov 28 2026", "28 Nov 2026", "November 28th, 2026"
+    final monthNameWithYear = RegExp(
       r'\b(?:(0?[1-9]|[12]\d|3[01])(?:st|nd|rd|th)?\s+)?(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(?:(0?[1-9]|[12]\d|3[01])(?:st|nd|rd|th)?,?\s+)?(20\d\d)\b',
       caseSensitive: false,
     );
-    final monthMatch = monthNameRegex.firstMatch(text);
-    if (monthMatch != null) {
-      final monthStr = monthMatch.group(2)!.toLowerCase();
+    final mMatch = monthNameWithYear.firstMatch(text);
+    if (mMatch != null) {
+      final monthStr = mMatch.group(2)!.toLowerCase();
       final month = _monthNumber(monthStr);
-      final dayStr = monthMatch.group(1) ?? monthMatch.group(3) ?? '1';
+      final dayStr = mMatch.group(1) ?? mMatch.group(3) ?? '1';
       final day = int.tryParse(dayStr) ?? 1;
-      final year = int.tryParse(monthMatch.group(4) ?? '2026') ?? DateTime.now().year;
+      final year = int.tryParse(mMatch.group(4) ?? '2026') ?? DateTime.now().year;
       return DateTime(year, month, day);
     }
 
-    // 2. Match ISO: YYYY-MM-DD
+    // 2. Month Name + Day without Year on same line: e.g. "November 28", "Nov 28th"
+    // Search nearby lines or text for a 4-digit year 20xx
+    final monthNameNoYear = RegExp(
+      r'\b(?:(0?[1-9]|[12]\d|3[01])(?:st|nd|rd|th)?\s+)?(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(?:(0?[1-9]|[12]\d|3[01])(?:st|nd|rd|th)?)?\b',
+      caseSensitive: false,
+    );
+    final noYearMatch = monthNameNoYear.firstMatch(text);
+    if (noYearMatch != null) {
+      final monthStr = noYearMatch.group(2)!.toLowerCase();
+      final month = _monthNumber(monthStr);
+      final dayStr = noYearMatch.group(1) ?? noYearMatch.group(3) ?? '1';
+      final day = int.tryParse(dayStr);
+
+      if (day != null && day >= 1 && day <= 31) {
+        // Look for 20xx year anywhere in text
+        final yearRegex = RegExp(r'\b(20\d\d)\b');
+        final yMatch = yearRegex.firstMatch(text);
+        final year = yMatch != null ? int.parse(yMatch.group(1)!) : DateTime.now().year;
+        return DateTime(year, month, day);
+      }
+    }
+
+    // 3. Match ISO: YYYY-MM-DD
     final isoRegex = RegExp(r'\b(20\d\d)[-/](0?[1-9]|1[0-2])[-/](0?[1-9]|[12]\d|3[01])\b');
     final isoMatch = isoRegex.firstMatch(text);
     if (isoMatch != null) {
@@ -250,7 +273,7 @@ class FieldParser {
       return DateTime(y, m, d);
     }
 
-    // 3. Match MM/DD/YYYY or DD/MM/YYYY
+    // 4. Match MM/DD/YYYY or DD/MM/YYYY
     final slashRegex = RegExp(r'\b(0?[1-9]|1[0-2])/(0?[1-9]|[12]\d|3[01])/(20\d\d|\d{2})\b');
     final slashMatch = slashRegex.firstMatch(text);
     if (slashMatch != null) {
@@ -274,10 +297,13 @@ class FieldParser {
 
   static List<String> _extractTimes(String text) {
     final times = <String>[];
-    // e.g. 8:00 AM, 10:00am, 2:30 PM, 14:00, 8 AM
-    final timeRegex = RegExp(r'\b(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?|\d{1,2}\s*(?:AM|PM|am|pm))\b');
+    // e.g. 8:00 AM, 10:00am, 2:30 PM, 14:00, 8 AM, 8:00 A.M., 8:00 a.m.
+    final timeRegex = RegExp(
+      r'\b(\d{1,2}:\d{2}\s*(?:A\.M\.|P\.M\.|a\.m\.|p\.m\.|AM|PM|am|pm)?|\d{1,2}\s*(?:A\.M\.|P\.M\.|a\.m\.|p\.m\.|AM|PM|am|pm))\b',
+      caseSensitive: false,
+    );
     for (final match in timeRegex.allMatches(text)) {
-      final t = match.group(1)!.trim();
+      final t = match.group(1)!.trim().replaceAll('.', '');
       if (!times.contains(t)) {
         times.add(t);
       }

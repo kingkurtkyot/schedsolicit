@@ -23,7 +23,97 @@ class ReviewConfirmScreen extends ConsumerStatefulWidget {
 }
 
 class _ReviewConfirmScreenState extends ConsumerState<ReviewConfirmScreen> {
-  bool _showImage = true;
+  bool _showImage = false;
+  bool _showForm = false; // Collapsed by default so user doesn't have to touch anything!
+
+  void _saveDirectly(Map<String, dynamic> fields, bool isSchedule) {
+    HapticFeedback.heavyImpact();
+    final now = DateTime.now().toUtc();
+    final id = const Uuid().v4();
+
+    if (isSchedule) {
+      final dateVal = fields['event_date'];
+      final DateTime parsedDate = dateVal is DateTime
+          ? dateVal
+          : (dateVal is String ? DateTime.tryParse(dateVal) ?? DateTime.now() : DateTime.now());
+
+      final item = ScheduleItem(
+        id: id,
+        title: fields['title'] as String? ?? 'Scanned Event',
+        description: fields['description'] as String?,
+        eventDate: parsedDate,
+        startTime: fields['start_time'] as String?,
+        endTime: fields['end_time'] as String?,
+        location: fields['location'] as String?,
+        priority: fields['priority'] as String? ?? 'medium',
+        category: fields['category'] as String? ?? 'General',
+        status: 'Active',
+        notes: fields['notes'] as String?,
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      ref.read(scheduleListProvider.notifier).addItem(item);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
+              Expanded(child: Text('Auto-saved "${item.title}" to Schedule')),
+            ],
+          ),
+          backgroundColor: Colors.green.shade800,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      context.go('/schedule');
+    } else {
+      final amtVal = fields['amount_requested'];
+      final double? parsedAmt = amtVal is num
+          ? amtVal.toDouble()
+          : (amtVal is String ? double.tryParse(amtVal.replaceAll(',', '')) : null);
+
+      final dateVal = fields['deadline'];
+      final DateTime? parsedDeadline = dateVal is DateTime
+          ? dateVal
+          : (dateVal is String ? DateTime.tryParse(dateVal) : null);
+
+      final item = SolicitationItem(
+        id: id,
+        title: fields['title'] as String? ?? 'Scanned Solicitation',
+        organization: fields['organization'] as String?,
+        contactPerson: fields['contact_person'] as String?,
+        amountRequested: parsedAmt,
+        deadline: parsedDeadline,
+        email: fields['email'] as String?,
+        phone: fields['phone'] as String?,
+        purpose: fields['purpose'] as String?,
+        priority: fields['priority'] as String? ?? 'medium',
+        category: fields['category'] as String? ?? 'General',
+        status: 'Draft',
+        notes: fields['notes'] as String?,
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      ref.read(solicitationListProvider.notifier).addItem(item);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
+              Expanded(child: Text('Auto-saved "${item.title}" to Solicitations')),
+            ],
+          ),
+          backgroundColor: Colors.green.shade800,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      context.go('/solicitation');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,39 +123,24 @@ class _ReviewConfirmScreenState extends ConsumerState<ReviewConfirmScreen> {
     final imageBytes = data['image_bytes'] as Uint8List?;
     final fullText = data['full_text'] as String? ?? '';
     final initialFields = (data['fields'] as Map<String, dynamic>?) ?? {};
-    final confidence = (data['confidence'] as num?)?.toDouble() ?? 0.90;
+    final confidence = (data['confidence'] as num?)?.toDouble() ?? 0.95;
 
     final isSchedule = module == 'schedule';
     final fieldsDef = isSchedule ? FieldDefinitions.scheduleFields : FieldDefinitions.solicitationFields;
 
-    // Build quick summary chips from extracted fields
-    final chips = <Widget>[];
-    if (initialFields['event_date'] != null) {
-      final d = initialFields['event_date'];
-      final dateStr = d is DateTime ? DateFormat('MMM d, yyyy').format(d) : d.toString();
-      chips.add(_buildChip(Icons.calendar_today, dateStr, theme));
-    }
-    if (initialFields['deadline'] != null) {
-      final d = initialFields['deadline'];
-      final dateStr = d is DateTime ? DateFormat('MMM d, yyyy').format(d) : d.toString();
-      chips.add(_buildChip(Icons.event_busy, 'Deadline: $dateStr', theme));
-    }
-    if (initialFields['start_time'] != null) {
-      chips.add(_buildChip(Icons.access_time, initialFields['start_time'].toString(), theme));
-    }
-    if (initialFields['amount_requested'] != null) {
-      chips.add(_buildChip(Icons.payments_outlined, '\$${initialFields['amount_requested']}', theme));
-    }
-    if (initialFields['organization'] != null) {
-      chips.add(_buildChip(Icons.business, initialFields['organization'].toString(), theme));
-    }
-    if (initialFields['location'] != null) {
-      chips.add(_buildChip(Icons.place_outlined, initialFields['location'].toString(), theme));
-    }
+    final title = initialFields['title']?.toString() ?? (isSchedule ? 'Scanned Event' : 'Scanned Solicitation');
+    final dateVal = isSchedule ? initialFields['event_date'] : initialFields['deadline'];
+    final dateStr = dateVal is DateTime
+        ? DateFormat('EEEE, MMM d, yyyy').format(dateVal)
+        : (dateVal != null ? dateVal.toString() : 'Not specified');
+    final timeStr = initialFields['start_time']?.toString();
+    final location = (initialFields['location'] ?? initialFields['organization'])?.toString();
+    final category = initialFields['category']?.toString();
+    final amount = initialFields['amount_requested'];
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isSchedule ? 'Review Scanned Event' : 'Review Scanned Solicitation'),
+        title: Text(isSchedule ? 'Review Scanned Event' : 'Review Solicitation'),
         actions: [
           if (fullText.trim().isNotEmpty)
             IconButton(
@@ -76,37 +151,61 @@ class _ReviewConfirmScreenState extends ConsumerState<ReviewConfirmScreen> {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.only(bottom: 40),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
         children: [
-          // Extraction Result Summary Banner
+          // 1. PRIMARY AUTOMATED EXTRACTION CARD (Everything Ready!)
           Container(
-            margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: theme.colorScheme.primaryContainer.withOpacity(0.35),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: theme.colorScheme.primary.withOpacity(0.2)),
+              gradient: LinearGradient(
+                colors: [
+                  theme.colorScheme.primaryContainer.withOpacity(0.5),
+                  theme.colorScheme.surface,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: theme.colorScheme.primary.withOpacity(0.3), width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: theme.colorScheme.primary.withOpacity(0.08),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // Header status
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.check_circle, color: theme.colorScheme.primary, size: 20),
-                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade600,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.check, color: Colors.white, size: 16),
+                        ),
+                        const SizedBox(width: 10),
                         Text(
-                          'AI Auto-Extraction Complete',
-                          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                          '100% Extracted & Ready',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.primary,
+                          ),
                         ),
                       ],
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withOpacity(0.15),
+                        color: theme.colorScheme.primary.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
@@ -120,161 +219,169 @@ class _ReviewConfirmScreenState extends ConsumerState<ReviewConfirmScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+
+                const SizedBox(height: 16),
+
+                // Extracted Title
                 Text(
-                  'Extracted details are pre-filled below. You can adjust any field before saving.',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                  title,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: -0.3,
                   ),
                 ),
-                if (chips.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Wrap(spacing: 8, runSpacing: 8, children: chips),
+
+                const SizedBox(height: 14),
+                const Divider(),
+                const SizedBox(height: 10),
+
+                // Key Info Rows
+                _buildInfoRow(
+                  Icons.calendar_month,
+                  'Date',
+                  timeStr != null ? '$dateStr at $timeStr' : dateStr,
+                  theme,
+                ),
+
+                if (location != null && location.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  _buildInfoRow(
+                    isSchedule ? Icons.place_outlined : Icons.business_outlined,
+                    isSchedule ? 'Venue' : 'Organization',
+                    location,
+                    theme,
+                  ),
                 ],
+
+                if (amount != null) ...[
+                  const SizedBox(height: 10),
+                  _buildInfoRow(
+                    Icons.payments_outlined,
+                    'Amount',
+                    '₱$amount',
+                    theme,
+                  ),
+                ],
+
+                if (category != null && category.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  _buildInfoRow(
+                    Icons.label_outline,
+                    'Category',
+                    category,
+                    theme,
+                  ),
+                ],
+
+                const SizedBox(height: 20),
+
+                // 🌟 ONE-TAP SAVE BUTTON (User never needs to touch anything!)
+                FilledButton.icon(
+                  icon: const Icon(Icons.check_circle_outline, size: 22),
+                  label: Text(
+                    isSchedule ? 'Confirm & Save Event (1-Tap)' : 'Confirm & Save Solicitation (1-Tap)',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    elevation: 3,
+                  ),
+                  onPressed: () => _saveDirectly(initialFields, isSchedule),
+                ),
               ],
             ),
           ),
 
-          // Collapsible Image Preview
+          const SizedBox(height: 16),
+
+          // 2. Collapsible Document Preview
           if (imageBytes != null && imageBytes.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: Card(
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(color: theme.colorScheme.outlineVariant.withOpacity(0.5)),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: Column(
-                  children: [
-                    ListTile(
-                      dense: true,
-                      leading: const Icon(Icons.image_outlined),
-                      title: const Text('Captured Document Preview', style: TextStyle(fontWeight: FontWeight.w600)),
-                      trailing: IconButton(
-                        icon: Icon(_showImage ? Icons.expand_less : Icons.expand_more),
-                        onPressed: () => setState(() => _showImage = !_showImage),
-                      ),
+            Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: theme.colorScheme.outlineVariant.withOpacity(0.4)),
+              ),
+              child: ExpansionTile(
+                initiallyExpanded: _showImage,
+                leading: const Icon(Icons.image_outlined),
+                title: const Text('View Captured Document', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                children: [
+                  Container(
+                    height: 220,
+                    width: double.infinity,
+                    color: Colors.black.withOpacity(0.04),
+                    padding: const EdgeInsets.all(8),
+                    child: Image.memory(
+                      imageBytes,
+                      fit: BoxFit.contain,
                     ),
-                    if (_showImage)
-                      Container(
-                        height: 180,
-                        width: double.infinity,
-                        color: Colors.black.withOpacity(0.04),
-                        child: Image.memory(
-                          imageBytes,
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) => const Center(
-                            child: Icon(Icons.broken_image_outlined, size: 40, color: Colors.grey),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
 
-          // Form to edit and confirm
-          DynamicForm(
-            fields: fieldsDef,
-            initialValues: initialFields,
-            submitButtonText: isSchedule ? 'Save Event to Schedule' : 'Save Solicitation',
-            isScrollable: false,
-            onSave: (confirmedValues) {
-              HapticFeedback.mediumImpact();
-              final now = DateTime.now().toUtc();
-              final id = const Uuid().v4();
+          const SizedBox(height: 12),
 
-              if (isSchedule) {
-                final dateVal = confirmedValues['event_date'];
-                final DateTime parsedDate = dateVal is DateTime
-                    ? dateVal
-                    : (dateVal is String ? DateTime.tryParse(dateVal) ?? DateTime.now() : DateTime.now());
-
-                final item = ScheduleItem(
-                  id: id,
-                  title: confirmedValues['title'] as String? ?? 'Scanned Event',
-                  description: confirmedValues['description'] as String?,
-                  eventDate: parsedDate,
-                  startTime: confirmedValues['start_time'] as String?,
-                  endTime: confirmedValues['end_time'] as String?,
-                  location: confirmedValues['location'] as String?,
-                  priority: confirmedValues['priority'] as String? ?? 'medium',
-                  category: confirmedValues['category'] as String?,
-                  status: 'Active',
-                  createdAt: now,
-                  updatedAt: now,
-                );
-                ref.read(scheduleListProvider.notifier).addItem(item);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Saved "${item.title}" to schedule'),
-                    backgroundColor: Colors.green.shade800,
-                    behavior: SnackBarBehavior.floating,
+          // 3. Optional Manual Adjustment Accordion (Collapsed by default!)
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: theme.colorScheme.outlineVariant.withOpacity(0.4)),
+            ),
+            child: ExpansionTile(
+              initiallyExpanded: _showForm,
+              leading: const Icon(Icons.edit_note_outlined),
+              title: const Text('Adjust Extracted Fields', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+              subtitle: const Text('Optional: Only if you want to tweak details', style: TextStyle(fontSize: 12, color: Colors.grey)),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: DynamicForm(
+                    fields: fieldsDef,
+                    initialValues: initialFields,
+                    submitButtonText: isSchedule ? 'Save Customized Event' : 'Save Customized Solicitation',
+                    isScrollable: false,
+                    onSave: (confirmedValues) => _saveDirectly(confirmedValues, isSchedule),
                   ),
-                );
-                context.go('/schedule');
-              } else {
-                final amtVal = confirmedValues['amount_requested'];
-                final double? parsedAmt = amtVal is num
-                    ? amtVal.toDouble()
-                    : (amtVal is String ? double.tryParse(amtVal.replaceAll(',', '')) : null);
-
-                final item = SolicitationItem(
-                  id: id,
-                  title: confirmedValues['title'] as String? ?? 'Scanned Solicitation',
-                  organization: confirmedValues['organization'] as String?,
-                  contactPerson: confirmedValues['contact_person'] as String?,
-                  amountRequested: parsedAmt,
-                  email: confirmedValues['email'] as String?,
-                  phone: confirmedValues['phone'] as String?,
-                  priority: confirmedValues['priority'] as String? ?? 'medium',
-                  category: confirmedValues['category'] as String?,
-                  status: 'Draft',
-                  createdAt: now,
-                  updatedAt: now,
-                );
-                ref.read(solicitationListProvider.notifier).addItem(item);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Saved "${item.title}" to solicitations'),
-                    backgroundColor: Colors.green.shade800,
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-                context.go('/solicitation');
-              }
-            },
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildChip(IconData icon, String label, ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.6)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: theme.colorScheme.primary),
-          const SizedBox(width: 6),
-          Text(
+  Widget _buildInfoRow(IconData icon, String label, String value, ThemeData theme) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 20, color: theme.colorScheme.primary),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 80,
+          child: Text(
             label,
             style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: theme.colorScheme.onSurface,
+              fontSize: 13,
+              color: theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w500,
             ),
           ),
-        ],
-      ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
     );
   }
 

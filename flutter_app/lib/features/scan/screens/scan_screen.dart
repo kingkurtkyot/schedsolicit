@@ -1,22 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:uuid/uuid.dart';
 import '../services/image_preprocessor.dart';
 import '../services/ocr_service.dart';
 import '../services/field_parser.dart';
+import '../../schedule/models/schedule_item.dart';
+import '../../schedule/providers/schedule_provider.dart';
+import '../../solicitation/models/solicitation_item.dart';
+import '../../solicitation/providers/solicitation_provider.dart';
 
-class ScanScreen extends StatefulWidget {
+class ScanScreen extends ConsumerStatefulWidget {
   const ScanScreen({super.key});
 
   @override
-  State<ScanScreen> createState() => _ScanScreenState();
+  ConsumerState<ScanScreen> createState() => _ScanScreenState();
 }
 
-class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateMixin {
+class _ScanScreenState extends ConsumerState<ScanScreen> with SingleTickerProviderStateMixin {
   final ImagePicker _picker = ImagePicker();
   late final OcrService _ocrService;
   bool _isProcessing = false;
+  bool _autoSave = false;
   String _status = '';
   int _step = 1;
   String _selectedModule = 'schedule';
@@ -52,7 +59,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
     setState(() {
       _isProcessing = true;
       _step = 1;
-      _status = 'Preparing image...';
+      _status = 'Optimizing image contrast...';
     });
 
     try {
@@ -62,7 +69,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
       if (!mounted) return;
       setState(() {
         _step = 2;
-        _status = 'Reading document text...';
+        _status = 'Running 3-pass OCR extraction...';
       });
 
       final ocrResult = await _ocrService.recognizeBytes(
@@ -83,16 +90,16 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
                 children: [
                   Icon(Icons.info_outline, color: Colors.orange),
                   SizedBox(width: 8),
-                  Text('No Text Detected'),
+                  Text('Low Clarity Document'),
                 ],
               ),
               content: const Text(
-                'Could not detect readable text in this image. Please ensure proper lighting and that the document text is sharp and in focus.',
+                'Could not detect readable text in this photo. Please make sure the lighting is even and the camera is steady, or fill details manually.',
               ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Retake Photo'),
+                  child: const Text('Try Another Photo'),
                 ),
                 FilledButton(
                   onPressed: () {
@@ -119,10 +126,10 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
       if (!mounted) return;
       setState(() {
         _step = 3;
-        _status = 'Auto-extracting details...';
+        _status = 'Auto-extracting event details...';
       });
 
-      // Client-side heuristic parser
+      // Parse details
       final clientParsed = _selectedModule == 'schedule'
           ? FieldParser.parseSchedule(ocrResult.fullText)
           : FieldParser.parseSolicitation(ocrResult.fullText);
@@ -134,25 +141,103 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
         }
       }
 
-      final confidenceScore = ocrResult.confidence > 0 ? ocrResult.confidence : 0.92;
+      final confidenceScore = ocrResult.confidence > 0 ? ocrResult.confidence : 0.95;
       HapticFeedback.mediumImpact();
 
-      if (mounted) {
-        context.push('/scan/review', extra: {
-          'module': _selectedModule,
-          'image_bytes': preprocessedBytes,
-          'image_name': pickedFile.name,
-          'full_text': ocrResult.fullText,
-          'fields': mergedFields,
-          'confidence': confidenceScore,
-          'confidences': clientParsed.confidenceScores,
-        });
+      if (!mounted) return;
+
+      // Check if Instant Auto-Save is active
+      if (_autoSave) {
+        final now = DateTime.now().toUtc();
+        final id = const Uuid().v4();
+
+        if (_selectedModule == 'schedule') {
+          final dateVal = mergedFields['event_date'];
+          final DateTime parsedDate = dateVal is DateTime
+              ? dateVal
+              : (dateVal is String ? DateTime.tryParse(dateVal) ?? DateTime.now() : DateTime.now());
+
+          final item = ScheduleItem(
+            id: id,
+            title: mergedFields['title'] as String? ?? 'Scanned Event',
+            description: mergedFields['description'] as String?,
+            eventDate: parsedDate,
+            startTime: mergedFields['start_time'] as String?,
+            endTime: mergedFields['end_time'] as String?,
+            location: mergedFields['location'] as String?,
+            priority: mergedFields['priority'] as String? ?? 'medium',
+            category: mergedFields['category'] as String? ?? 'General',
+            status: 'Active',
+            notes: mergedFields['notes'] as String?,
+            createdAt: now,
+            updatedAt: now,
+          );
+
+          ref.read(scheduleListProvider.notifier).addItem(item);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Instant Saved "${item.title}" to Schedule!'),
+              backgroundColor: Colors.green.shade800,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          context.go('/schedule');
+        } else {
+          final amtVal = mergedFields['amount_requested'];
+          final double? parsedAmt = amtVal is num
+              ? amtVal.toDouble()
+              : (amtVal is String ? double.tryParse(amtVal.replaceAll(',', '')) : null);
+
+          final dateVal = mergedFields['deadline'];
+          final DateTime? parsedDeadline = dateVal is DateTime
+              ? dateVal
+              : (dateVal is String ? DateTime.tryParse(dateVal) : null);
+
+          final item = SolicitationItem(
+            id: id,
+            title: mergedFields['title'] as String? ?? 'Scanned Solicitation',
+            organization: mergedFields['organization'] as String?,
+            contactPerson: mergedFields['contact_person'] as String?,
+            amountRequested: parsedAmt,
+            deadline: parsedDeadline,
+            email: mergedFields['email'] as String?,
+            phone: mergedFields['phone'] as String?,
+            purpose: mergedFields['purpose'] as String?,
+            priority: mergedFields['priority'] as String? ?? 'medium',
+            category: mergedFields['category'] as String? ?? 'General',
+            status: 'Draft',
+            createdAt: now,
+            updatedAt: now,
+          );
+
+          ref.read(solicitationListProvider.notifier).addItem(item);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Instant Saved "${item.title}" to Solicitations!'),
+              backgroundColor: Colors.green.shade800,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          context.go('/solicitation');
+        }
+        return;
       }
+
+      // If not auto-saving directly, open the 1-Tap Confirmation screen
+      context.push('/scan/review', extra: {
+        'module': _selectedModule,
+        'image_bytes': preprocessedBytes,
+        'image_name': pickedFile.name,
+        'full_text': ocrResult.fullText,
+        'fields': mergedFields,
+        'confidence': confidenceScore,
+        'confidences': clientParsed.confidenceScores,
+      });
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Scanning notice: $e'),
+            content: Text('Notice: $e'),
             backgroundColor: Colors.orange.shade800,
             behavior: SnackBarBehavior.floating,
           ),
@@ -226,7 +311,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Scan posters, invitations, letters, or receipts. Titles, dates, amounts, and venues are extracted on-device.',
+                            'Scan posters, invitations, or letters. Details are extracted with 1-tap confirmation.',
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
                               height: 1.35,
@@ -239,7 +324,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
                 ),
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
               // Module Selector
               Text(
@@ -270,6 +355,40 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
                 ],
                 selected: {_selectedModule},
                 onSelectionChanged: (set) => setState(() => _selectedModule = set.first),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Instant Auto-Save Toggle
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isDark ? theme.colorScheme.surfaceContainerHigh : theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.bolt, color: theme.colorScheme.primary, size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Instant Auto-Save', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                          Text(
+                            'Save to list directly after scanning without review',
+                            style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch(
+                      value: _autoSave,
+                      onChanged: (val) => setState(() => _autoSave = val),
+                    ),
+                  ],
+                ),
               ),
 
               const Spacer(),
